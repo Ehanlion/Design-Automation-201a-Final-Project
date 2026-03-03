@@ -1,3 +1,5 @@
+# final project
+
 How to use the files (example):
 
 python3 therm.py --therm_conf
