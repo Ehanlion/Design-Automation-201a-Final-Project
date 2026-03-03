@@ -1,0 +1,253 @@
+Cadence Genus(TM) Synthesis Solution.
+Copyright 2021 Cadence Design Systems, Inc. All rights reserved worldwide.
+Cadence and the Cadence logo are registered trademarks and Genus is a trademark
+of Cadence Design Systems, Inc. in the United States and other countries.
+
+Version: 21.11-s126_1, built Mon Dec 20 12:52:46 PST 2021
+Options: 
+Date:    Wed Mar 05 07:21:43 2025
+Host:    sysml.ee.ucla.edu (x86_64 w/Linux 4.18.0-553.40.1.el8_10.x86_64) (64cores*128cpus*1physical cpu*AMD EPYC 9554P 64-Core Processor 1024KB) (263828172KB)
+PID:     636052
+OS:      Red Hat Enterprise Linux release 8.10 (Ootpa)
+
+Checking out license: Genus_Synthesis
+
+
+***********************************************************************************************************
+***********************************************************************************************************
+
+
+
+Loading tool scripts...
+Finished loading tool scripts (6 seconds elapsed).
+
+WARNING: This version of the tool is 1170 days old.
+@genus:root: 1> # UCLA EE 201D
+@genus:root: 2> # WINTER 2022
+@genus:root: 3> # Lab 1 Skeleton Tcl Script
+@genus:root: 4> 
+@genus:root: 4> #**************************************************/
+@genus:root: 5> #* Script for Cadence Genus synthesis             */
+@genus:root: 6> #*                                                */
+@genus:root: 7> #* To run: genus < ~/synthesize_pipeline.tcl                 */
+@genus:root: 8> #*                                                */
+@genus:root: 9> #**************************************************/
+@genus:root: 10> 
+@genus:root: 10> # Use verbose console output
+@genus:root: 11> set_db information_level 9
+  Setting attribute of root '/': 'information_level' = 9
+1 9
+@genus:root: 12> 
+@genus:root: 12> # Suppress warnings that are OK to ignore. Excluding some Liberty import Warnings
+@genus:root: 13> suppress_messages LBR-40 LBR-399 LBR-9
+  Setting attribute of message 'LBR-40': 'max_print' = 0
+Warning : Unknown message ID. [MESG-10]
+        : Message ID 'LBR-399' cannot be found.
+  Setting attribute of message 'LBR-9': 'max_print' = 0
+@genus:root: 14> 
+@genus:root: 14> # Set path where Genus will look for RTL design files
+@genus:root: 15> set_db init_hdl_search_path {~/}
+  Setting attribute of root '/': 'init_hdl_search_path' = ~/
+1 ~/
+@genus:root: 16> 
+@genus:root: 16> # Make sure errors are reported for missing modules
+@genus:root: 17> set_db hdl_error_on_blackbox true
+  Setting attribute of root '/': 'hdl_error_on_blackbox' = true
+1 true
+@genus:root: 18> 
+@genus:root: 18> # Set path where Genus will look for timing libraries, i.e., Liberty files (.lib suffix)
+@genus:root: 19> set_db init_lib_search_path {/app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib}
+  Setting attribute of root '/': 'init_lib_search_path' = /app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib
+1 /app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib
+@genus:root: 20> 
+@genus:root: 20> # Set filename of the Liberty file for our Nangate library
+@genus:root: 21> set_db library tsmc_cln65_sc_a10_4X2Z_hvt.plib
+Error   : Fail to load library file. [LBR-522] [set_db]
+        : Attempt to read .lib library '/app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib/tsmc_cln65_sc_a10_4X2Z_hvt.plib' failed
+        : Fix the library read error, then reload the library.
+
+Threads Configured:3
+Error   : Missing library header in the library file. [LBR-507] [set_db]
+        : Syntax error: library header is missing or this file may not be a liberty file. (File /app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib/tsmc_cln65_sc_a10_4X2Z_hvt.plib, Line 196295)
+        : Each library file is expected to have the library header.
+Error   : Fail to load library file. [LBR-522] [set_db]
+        : Attempt to read .lib library '/app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib/tsmc_cln65_sc_a10_4X2Z_hvt.plib' failed (File /app/library/tsmc/TSMC65/Standard_Cells/TSMC_N65_ARM/Artisan/aci/sc-ad10/astro/plib/tsmc_cln65_sc_a10_4X2Z_hvt.plib)
+
+  Message Summary for Library tsmc_cln65_sc_a10_4X2Z_hvt.plib:
+  ************************************************************
+  Fail to load library file. [LBR-522]: 2
+  Missing library header in the library file. [LBR-507]: 1
+  ************************************************************
+ 
+Bad technology libraries.
+Error   : The data value for this attribute is invalid. [TUI-24] [set_db]
+        : The value 'tsmc_cln65_sc_a10_4X2Z_hvt.plib' cannot be set for attribute 'library'.
+        : To see the usage/description for this attribute, type '::legacy::set_attribute -h <attr_name> *' (in legacy UI mode) or 'help * <attr_name> -detail' (in CUI mode).
+1
+@genus:root: 22> 
+@genus:root: 22> # Set list of all necessary RTL files written in HDLs like Verilog or VHDL, separated by spaces
+@genus:root: 23> set hdl_files {pipeline_latch.v}
+pipeline_latch.v
+@genus:root: 24> 
+@genus:root: 24> # Set the name of the design within Genus
+@genus:root: 25> set DNAME pipeline_latch
+pipeline_latch
+@genus:root: 26> # Set the name of the top-level module used in the design HDL
+@genus:root: 27> set DESIGN pipeline_latch
+pipeline_latch
+@genus:root: 28> # Set the name of the clock signal used in the design HDL
+@genus:root: 29> set clkpin clk
+clk
+@genus:root: 30> # Load Verilog design files into Genus
+@genus:root: 31> read_hdl -v2001 ${hdl_files}
+            Reading Verilog file '/u1/ee/dedeepyo/pipeline_latch.v'
+@genus:root: 32> # Initialize design from design RTL
+@genus:root: 33> elaborate $DESIGN
+Error   : Failed to execute command. [LBR-163] [elaborate]
+        : No target technology library was loaded.
+        : Specify libraries using read_libs or read_mmmc.
+UM:   flow.cputime  flow.realtime  timing.setup.tns  timing.setup.wns  snapshot
+UM:*                                                                   elaborate
+1
+@genus:root: 34> #**************************************************/
+@genus:root: 35> # Apply design constraints for logic synthesis -- define clock period, slew rate, relative block I/O delays, etc. Here, we've only set timing constraints, with no area or power constraints listed.
+@genus:root: 36> # Set clock period
+@genus:root: 37> # EE 201D Lab 1: Modify ONLY the clock period constraint in following line
+@genus:root: 38> set clk_period 227
+227
+@genus:root: 39> 
+@genus:root: 39> set clock [define_clock -period ${clk_period} -name ${clkpin} [clock_ports]]
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [clock_ports]
+        : No elaborated designs in memory
+        : A design must first be read in with 'read_hdl' command and elaborated with 'elaborate' command.
+1
+@genus:root: 40> 
+@genus:root: 40> # Set block I/O external delays (needed for tool to "close timing") (Suppressing a Warning)
+@genus:root: 41> suppress_messages TUI-253
+  Setting attribute of message 'TUI-253': 'max_print' = 0
+@genus:root: 42> set_input_delay -clock ${clkpin} 0 [vfind /designs/${DESIGN}/ports -port *]
+I cannot find any directory named /designs/pipeline_latch/ports here
+1
+@genus:root: 43> set_output_delay -clock ${clkpin} 0 [vfind /designs/${DESIGN}/ports -port *]
+I cannot find any directory named /designs/pipeline_latch/ports here
+1
+@genus:root: 44> 
+@genus:root: 44> # Set clock slew rate (rise/fall time)
+@genus:root: 45> dc::set_clock_transition 0.08 ${clkpin}
+Error   : A required object parameter could not be found. [TUI-61] [parse_options]
+        : An object of type 'clock' named 'clk' could not be found.
+        : Check to make sure that the object exists and is of the correct type.  The 'what_is' command can be used to determine the type of an object.
+
+Usage: set_clock_transition [-rise] [-fall] [-min] [-max] <float> <clock>+
+
+    [-rise]:
+        rise transition value 
+    [-fall]:
+        fall transition value 
+    [-min]:
+        minimum value 
+    [-max]:
+        maximum value 
+    <float>:
+        value 
+    <clock>+:
+        clock objects 
+@genus:root: 46> 
+@genus:root: 46> #**************************************************/
+@genus:root: 47> 
+@genus:root: 47> # Check for any issues
+@genus:root: 48> check_design -unresolved
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [check_design]
+        : There is no design here.
+Failed on check_design
+@genus:root: 49> 
+@genus:root: 49> set_db tns_opto true
+  Setting attribute of root '/': 'tns_opto' = true
+1 true
+@genus:root: 50> 
+@genus:root: 50> # List possible timing problems prior to synthesis
+@genus:root: 51> report_timing -lint
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [report_timing]
+        : No elaborated designs in memory
+Nothing to report
+1
+@genus:root: 52> 
+@genus:root: 52> # Synthesize design and map it to technology library
+@genus:root: 53> 
+@genus:root: 53> syn_generic
+      flow.cputime  flow.realtime  timing.setup.tns  timing.setup.wns  snapshot
+UM:*                                                                   syn_gen
+1
+@genus:root: 54> syn_map
+Error   : Failed to execute command. [LBR-163] [syn_map]
+        : No target technology library was loaded.
+      flow.cputime  flow.realtime  timing.setup.tns  timing.setup.wns  snapshot
+UM:*                                                                   syn_map
+1
+@genus:root: 55> syn_opt
+Error   : Failed to execute command. [LBR-163] [syn_opt]
+        : No target technology library was loaded.
+      flow.cputime  flow.realtime  timing.setup.tns  timing.setup.wns  snapshot
+UM:*                                                                   syn_opt
+1
+@genus:root: 56> 
+@genus:root: 56> # List possible timing problems after synthesis
+@genus:root: 57> report_timing -lint
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [report_timing]
+        : No elaborated designs in memory
+Nothing to report
+1
+@genus:root: 58> 
+@genus:root: 58> # Generate post-synthesis reports on timing, area, and power estimates
+@genus:root: 59> report_timing > ~/output/synth_report_timing.txt
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [report_timing]
+        : No elaborated designs in memory
+Nothing to report
+1
+@genus:root: 60> report_gates  > ~/output/synth_report_gates.txt
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [::report::gates::report_gates]
+        : There is no design here.
+Failed on find_unique_design
+@genus:root: 61> report_power  > ~/output/synth_report_power.txt
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [::report::power::report_power]
+        : There is no design here.
+Failed on find_unique_design
+@genus:root: 62> report_area   > ~/output/synth_report_area.txt
+There are no libraries loaded.
+Failed on report area
+@genus:root: 63> 
+@genus:root: 63> # Output the synthesized netlist to a new Verilog file
+@genus:root: 64> write_hdl > ~/output/${DNAME}_synth.v
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [write_hdl]
+        : There is no design here.
+Failed on find_unique_design
+@genus:root: 65> 
+@genus:root: 65> # Export the design constraints to SDC file
+@genus:root: 66> write_sdc >  ~/output/${DNAME}.sdc
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [write_sdc]
+        : There is no design here.
+Failed on find_unique_design
+@genus:root: 67> 
+@genus:root: 67> # Report final timing again to console for user to review
+@genus:root: 68> report_timing -lint -verbose
+Error   : No designs are available. A design must first be read in and elaborated. [TUI-10] [report_timing]
+        : No elaborated designs in memory
+Nothing to report
+1
+@genus:root: 69> 
+@genus:root: 69> puts \n
+
+
+@genus:root: 70> puts "Synthesis Finished!         "
+Synthesis Finished!         
+@genus:root: 71> puts \n
+
+
+@genus:root: 72> puts "Check output/ for synthesis results and reports."
+Check output/ for synthesis results and reports.
+@genus:root: 73> puts \n
+
+
+@genus:root: 74>  
+@genus:root: 74> # Exit Genus
+@genus:root: 75> quit

@@ -1,0 +1,2622 @@
+Chip Name: Power_Source
+
+Black-Box Parameters: area = 900.0, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: silicon_individual_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['power_converter,', '5nm_PG_metal,', '5nm_PG_metal,', '5nm_PG_metal,', '5nm_PG_metal,', '5nm_PG_metal,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 918.1333676073897
+Stacked Chips: [<design.Chip object at 0x7f17093c15e0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 0.0, logic = 0.0, analog = 1.0.
+Reticle is not shared.
+NRE Cost: 31.105
+Quantity: 1000000
+
+Chip Power: 0.0
+Stack Power: 300.00000000039404
+Total Power: 300.00000000039404
+
+Number of Chip Power Pads: 3056
+Number of Signal Pads: 0
+Total number of pads: 3056
+
+Area of IO Cells: 0
+Area required by pads: 0.3136
+Chip Calculated Area: 900.0
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 42.027800441220606
+Chip NRE Total Cost: 31.105
+Chip True Yield: 0.999
+Chip Tested Yield: 0.999
+Chip Quality: 1.0
+Chip Cost: 1391.0772432512397
+>>
+Chip Name: substrate
+
+Black-Box Parameters: area = 900.0, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: silicon_individual_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['substrate_TSV,', '5nm_PG_metal,', '5nm_PG_metal,', '5nm_IO_metal,', '5nm_IO_metal,', '5nm_IO_metal,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 843.5777804313492
+Stacked Chips: [<design.Chip object at 0x7f17093c13d0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 0.0, logic = 0.0, analog = 1.0.
+Reticle is not shared.
+NRE Cost: 31.005
+Quantity: 1000000
+
+Chip Power: 0.0
+Stack Power: 300.00000000039404
+Total Power: 300.00000000039404
+
+Number of Chip Power Pads: 3056
+Number of Signal Pads: 0
+Total number of pads: 3056
+
+Area of IO Cells: 0
+Area required by pads: 0.3136
+Chip Calculated Area: 900.0
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.9987263113602037
+Chip Self Quality: 1.0
+Chip Self Cost: 26.386860107292875
+Chip NRE Total Cost: 31.005
+Chip True Yield: 0.9987263113602037
+Chip Tested Yield: 0.9987263113602037
+Chip Quality: 1.0
+Chip Cost: 1255.4511931895906
+>>
+Chip Name: GPU
+
+Black-Box Parameters: area = 826.2, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: silicon_individual_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_GPU_active_3D,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,', '5nm_GPU_metal,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 541.9482472831671
+Stacked Chips: [<design.Chip object at 0x7f17093c1520>, <design.Chip object at 0x7f17093c1580>, <design.Chip object at 0x7f17093c11c0>, <design.Chip object at 0x7f17093c1430>, <design.Chip object at 0x7f17093c1670>, <design.Chip object at 0x7f17093c1220>]
+Chip IO Area: 9.06256
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 0.0, logic = 1.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 31.0
+Quantity: 1000000
+
+Chip Power: 270.0
+Stack Power: 30.000000000192
+Total Power: 300.00000000039404
+
+Number of Chip Power Pads: 3056
+Number of Signal Pads: 274.0
+Total number of pads: 3330.0
+
+Area of IO Cells: 9.06256
+Area required by pads: 0.33440000000000003
+Chip Calculated Area: 826.2
+
+Chip Self True Yield: 0.9733568172994629
+Chip Self Test Yield: 0.9733568172994629
+Quality Yield: 1.0
+Assembly Yield: 0.994014980014994
+Chip Self Quality: 1.0
+Chip Self Cost: 144.8002619975961
+Chip NRE Total Cost: 31.0
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 0.994014980014994
+Chip Quality: 1.0
+Chip Cost: 1142.7136655001402
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1400>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1370>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c12b0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1250>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c11f0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1160>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c10d0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c16d0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1340>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1310>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1550>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1700>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1100>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1850>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1790>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c18e0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1760>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1820>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c12e0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1730>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1940>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c18b0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c19d0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1a90>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1a30>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c17f0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1610>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c16a0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1af0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1a60>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1b80>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1c40>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1be0>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1970>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1190>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1a00>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1ca0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1c10>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1d30>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1df0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+>>
+Chip Name: HBM
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: KGD_free_test
+Chip Stackup: ['5nm_HBM_active,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1d90>]
+Chip IO Area: 1.50876
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 5.0
+Quantity: 1000000
+
+Chip Power: 1.0
+Stack Power: 4.0
+Total Power: 5.000000000032
+
+Number of Chip Power Pads: 252
+Number of Signal Pads: 44.0
+Total number of pads: 296.0
+
+Area of IO Cells: 1.50876
+Area required by pads: 0.030600000000000002
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 0.9984926616503951
+Chip Self Test Yield: 0.9984926616503951
+Quality Yield: 0.993020965034979
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 16.79585192090555
+Chip NRE Total Cost: 5.0
+Chip True Yield: 0.9920279440699441
+Chip Tested Yield: 0.9920279440699441
+Chip Quality: 1.0
+Chip Cost: 155.7527334917399
+>>
+Chip Name: HBM_l1
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1b20>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 4.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.5
+Total Power: 4.0
+
+Number of Chip Power Pads: 202
+Number of Signal Pads: 0
+Total number of pads: 202
+
+Area of IO Cells: 0
+Area required by pads: 0.455625
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.994014980014994
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 4.0
+Chip True Yield: 0.993020965034979
+Chip Tested Yield: 1.0
+Chip Quality: 0.993020965034979
+Chip Cost: 128.88607800425214
+>>
+Chip Name: HBM_l2
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1910>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 3.0
+Total Power: 3.5
+
+Number of Chip Power Pads: 178
+Number of Signal Pads: 0
+Total number of pads: 178
+
+Area of IO Cells: 0
+Area required by pads: 0.3969
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.995009990004999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.5
+Chip True Yield: 0.994014980014994
+Chip Tested Yield: 1.0
+Chip Quality: 0.994014980014994
+Chip Cost: 111.67167649572976
+>>
+Chip Name: HBM_l3
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1bb0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 3.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.5
+Total Power: 3.0
+
+Number of Chip Power Pads: 152
+Number of Signal Pads: 0
+Total number of pads: 152
+
+Area of IO Cells: 0
+Area required by pads: 0.342225
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.996005996001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 3.0
+Chip True Yield: 0.995009990004999
+Chip Tested Yield: 1.0
+Chip Quality: 0.995009990004999
+Chip Cost: 94.45727498720737
+>>
+Chip Name: HBM_l4
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1e50>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 2.0
+Total Power: 2.5
+
+Number of Chip Power Pads: 126
+Number of Signal Pads: 0
+Total number of pads: 126
+
+Area of IO Cells: 0
+Area required by pads: 0.29159999999999997
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.997002999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.5
+Chip True Yield: 0.996005996001
+Chip Tested Yield: 1.0
+Chip Quality: 0.996005996001
+Chip Cost: 77.24287347868498
+>>
+Chip Name: HBM_l5
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1dc0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 2.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.5
+Total Power: 2.0
+
+Number of Chip Power Pads: 102
+Number of Signal Pads: 0
+Total number of pads: 102
+
+Area of IO Cells: 0
+Area required by pads: 0.245025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.998001
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 2.0
+Chip True Yield: 0.997002999
+Chip Tested Yield: 1.0
+Chip Quality: 0.997002999
+Chip Cost: 60.0284719701626
+>>
+Chip Name: HBM_l6
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1ee0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 1.0
+Total Power: 1.5
+
+Number of Chip Power Pads: 76
+Number of Signal Pads: 0
+Total number of pads: 76
+
+Area of IO Cells: 0
+Area required by pads: 0.164025
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 0.999
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.5
+Chip True Yield: 0.998001
+Chip Tested Yield: 1.0
+Chip Quality: 0.998001
+Chip Cost: 42.81407046164021
+>>
+Chip Name: HBM_l7
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 86.86439999999999
+Stacked Chips: [<design.Chip object at 0x7f17093c1fa0>]
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 1.0
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.5
+Total Power: 1.0
+
+Number of Chip Power Pads: 52
+Number of Signal Pads: 0
+Total number of pads: 52
+
+Area of IO Cells: 0
+Area required by pads: 0.1296
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 0.999
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 1.0
+Chip True Yield: 0.999
+Chip Tested Yield: 1.0
+Chip Quality: 0.999
+Chip Cost: 25.599668953117824
+>>
+Chip Name: HBM_l8
+
+Black-Box Parameters: area = 86.8644, cost = None, quality = None, power = None. (If any of these parameters are not empty, the value will override the computed value.)
+
+Chip Wafer Process: process_1
+Chip Assembly Process: HBM_organic_simultaneous_bonding
+Chip Test Process: notest
+Chip Stackup: ['5nm_HBM2HBM_metal,', '5nm_HBM_active,']
+
+Chip Core Area: 0.0
+Chip Stacked Area: 0.0
+Stacked Chips: []
+Chip IO Area: 0
+Assembly Core Area: 0.0
+Chip Buried: False
+Chip Core Voltage: 1.0
+
+Chip Area Breakdown: memory = 1.0, logic = 0.0, analog = 0.0.
+Reticle is not shared.
+NRE Cost: 0.5
+Quantity: 1000000
+
+Chip Power: 0.5
+Stack Power: 0.0
+Total Power: 0.5
+
+Number of Chip Power Pads: 26
+Number of Signal Pads: 0
+Total number of pads: 26
+
+Area of IO Cells: 0
+Area required by pads: 0.07289999999999999
+Chip Calculated Area: 86.8644
+
+Chip Self True Yield: 1.0
+Chip Self Test Yield: 1.0
+Quality Yield: 1.0
+Assembly Yield: 1.0
+Chip Self Quality: 1.0
+Chip Self Cost: 8.385267444595442
+Chip NRE Total Cost: 0.5
+Chip True Yield: 1.0
+Chip Tested Yield: 1.0
+Chip Quality: 1.0
+Chip Cost: 8.385267444595442
+1422.1822432512397

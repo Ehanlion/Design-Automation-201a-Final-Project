@@ -1,0 +1,11 @@
+Anemoi API client initialized.
+Project already exists
+3329
+Starting sizing at  1760254670.5140085
+Sizing done at  1760254670.5252807
+Time taken:  0.011272192001342773
+Starting placement at  1760254670.525309
+Placement done at  1760254670.5368567
+Time taken:  0.011547565460205078
+Placement finished, plots generated
+Highest box is : Dummy_Si_above_Power_Source.substrate.GPU_1 which ends at z : 2.4

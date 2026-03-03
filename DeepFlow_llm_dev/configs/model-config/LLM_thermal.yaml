@@ -1,0 +1,42 @@
+model_param:
+  mode: "LLM"
+  run_type: "training"
+  batch_size: 16
+  # seq_len: 4096
+  # seq_len: 16384 # For 16-tall HBM or 160GB
+  seq_len: 2048 # 2048 # For 8-tall HBM or 80GB
+  decode_len: 0
+  hidden_dim: 4096
+  attention:
+    attention_type: "mha"
+    num_heads: 32          # LLaMA 2-7B uses MHA (GQA only in 70B)
+  ffn_dim: 11008
+  ffn_mult: null
+  vocab_size: 32000
+  num_layers: 32
+  n_tokens: null
+  all_reduce: "every layer"
+inference_param:
+  sample_every: -1 # Llama 2-7B at batch size 16 with ctx len 4096
+
+# model_param:
+#   mode: "LLM"
+#   run_type: "training"
+#   batch_size: 256 # 128 # 64
+#   # seq_len: 4096            # OPT was trained at 2048; 4096 is fine for from-scratch training
+#   # seq_len: 2048 # For 8-tall HBM or 80GB
+#   # seq_len: 8192 # For 16-tall HBM or 160GB
+#   seq_len: 32768
+#   decode_len: 0
+#   hidden_dim: 2560
+#   attention:
+#     attention_type: "mha"
+#     num_heads: 32
+#   ffn_dim: 10240
+#   ffn_mult: null
+#   vocab_size: 50272
+#   num_layers: 32
+#   n_tokens: null
+#   all_reduce: "every layer"
+# inference_param:
+#   sample_every: -1 # OPT-2.7B with batch size 64 at ctx len 4096

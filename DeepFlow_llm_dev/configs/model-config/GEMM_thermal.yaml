@@ -1,0 +1,6 @@
+model_param:
+  mode: GEMM
+  M: 4194304
+  K: 7168
+  N: 2048
+  backward: true

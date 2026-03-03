@@ -1,0 +1,35 @@
+# Assembly
+
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**id** | **int** |  | [optional] [readonly] 
+**name** | **str** |  | 
+**index** | **int** |  | 
+**type** | **str** |  | [optional] [readonly] 
+**leaf** | **bool** |  | [optional] [readonly] 
+**children** | **str** |  | [optional] [readonly] 
+**parent** | **int** |  | [optional] 
+**visible** | **bool** |  | [optional] 
+**collapsed** | **bool** |  | [optional] 
+**active** | **bool** |  | [optional] 
+**timestamp** | **datetime** |  | [optional] [readonly] 
+**lumped** | **bool** |  | [optional] 
+**hc** | **str** |  | [optional] 
+**is_array** | **bool** |  | [optional] 
+**xcount** | **str** |  | [optional] 
+**ycount** | **str** |  | [optional] 
+**zcount** | **str** |  | [optional] 
+**xpitch** | **str** |  | [optional] 
+**ypitch** | **str** |  | [optional] 
+**zpitch** | **str** |  | [optional] 
+**xcount_calc** | **float** |  | [optional] [readonly] 
+**ycount_calc** | **float** |  | [optional] [readonly] 
+**zcount_calc** | **float** |  | [optional] [readonly] 
+**xpitch_calc** | **float** |  | [optional] [readonly] 
+**ypitch_calc** | **float** |  | [optional] [readonly] 
+**zpitch_calc** | **float** |  | [optional] [readonly] 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+
