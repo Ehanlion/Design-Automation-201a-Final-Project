@@ -42,6 +42,7 @@ heatsink_xml_parser.py      # Heatsink definitions parser
 configs/                    # XML system descriptions and material definitions
 output/                     # Variable definitions (power, area, HBM count)
 thermal_simulators/         # Simulator framework (Anemoi reference, not used locally)
+lab_files/                  # Project spec PDF and reference papers
 setup/
 ├── setup.sh                # Creates .venv and installs all dependencies
 └── requirements.txt        # Python package requirements
@@ -51,9 +52,8 @@ scripts/
 ├── run_config3_2p5D.sh
 └── run_all.sh
 docs/
-├── RUNNING_GUIDE.md        # Detailed running instructions and file descriptions
-└── _lab_files/             # Project spec PDF and reference papers
-out_therm/                  # Output directory for plots (generated)
+└── RUNNING_GUIDE.md        # Detailed running instructions and file descriptions
+out_therm/                  # Output directory for plots (generated at runtime)
 ```
 
 ## Three Test Configurations

@@ -8,12 +8,18 @@ This project implements a thermal resistance network extraction tool for 2.5D/3D
 
 ## Prerequisites
 
-Run on SEASnet server `eeapps.seas.ucla.edu`. Required Python packages:
+Run on SEASnet server `eeapps.seas.ucla.edu`.
 
+**Quick setup** (recommended):
+```bash
+./setup/setup.sh          # creates .venv and installs all dependencies
+source .venv/bin/activate  # activate for current shell
 ```
+
+**Manual setup** (alternative):
+```bash
 pip3 install --user click seaborn scikit-learn sortedcontainers
 ```
-
 The following are already available on SEASnet: `numpy`, `matplotlib`, `PyYAML`.
 
 ---
@@ -110,25 +116,38 @@ final_project/
 ├── rearrange.py                # Box class definition and overlap/placement utilities
 ├── bonding_xml_parser.py       # Parses bonding definitions XML
 ├── heatsink_xml_parser.py      # Parses heatsink definitions XML
-├── configs/
-│   └── thermal-configs/        # All XML configuration files
-│       ├── assembly_process_definitions.xml   # Assembly process parameters
-│       ├── bonding_definitions.xml            # Bonding material/geometry definitions
-│       ├── heatsink_definitions.xml           # Heatsink specifications
-│       ├── layer_definitions.xml              # Layer material/thickness definitions
-│       ├── netlist.xml                        # Chiplet connection netlist
-│       ├── wafer_process_definitions.xml      # Wafer process parameters
-│       └── sip_hbm_*.xml                     # System description configs (various topologies)
+├── configs/                    # All XML configuration files
+│   ├── assembly_process_definitions.xml   # Assembly process parameters
+│   ├── bonding_definitions.xml            # Bonding material/geometry definitions
+│   ├── heatsink_definitions.xml           # Heatsink specifications
+│   ├── layer_definitions.xml              # Layer material/thickness definitions
+│   ├── netlist.xml                        # Chiplet connection netlist
+│   ├── wafer_process_definitions.xml      # Wafer process parameters
+│   └── sip_hbm_*.xml                     # System description configs (various topologies)
 ├── output/
-│   └── output_vars2.yaml       # Variable definitions (GPU area, power, HBM count, etc.)
+│   ├── output_vars.yaml        # Variable definitions (alternate chiplet parameters)
+│   ├── output_vars1.yaml       # Variable definitions (alternate chiplet parameters)
+│   └── output_vars2.yaml       # Variable definitions (GPU area, power, HBM count, etc.) -- active
 ├── thermal_simulators/         # Simulator framework (Anemoi API client - reference only)
 │   ├── base.py                 # Abstract base class for simulators
 │   ├── factory.py              # Simulator factory
 │   ├── anemoi_sim.py           # Anemoi cloud simulator (not used locally)
 │   └── neural_sim.py           # Neural model simulator (not used locally)
-├── _lab_files/                 # Project specification and reference papers
-│   └── Final Project.pdf       # Project spec document
-├── out_therm/                  # Output directory (generated plots go here)
+├── lab_files/                  # Project specification and reference papers
+│   ├── Final Project.pdf       # Project spec document
+│   ├── Embedded Thermal Systems.pdf
+│   └── HotSpot Paper *.pdf     # HotSpot reference papers (3 papers)
+├── scripts/                    # Shell scripts for running test configurations
+│   ├── run_config1_3D_gpu_top.sh
+│   ├── run_config2_3D_gpu_bottom.sh
+│   ├── run_config3_2p5D.sh
+│   └── run_all.sh
+├── setup/                      # Environment setup
+│   ├── setup.sh                # Creates .venv and installs all dependencies
+│   └── requirements.txt        # Python package requirements
+├── docs/
+│   └── RUNNING_GUIDE.md        # This file
+├── out_therm/                  # Output directory for plots (generated at runtime)
 ├── .gitignore
 └── README.md
 ```
