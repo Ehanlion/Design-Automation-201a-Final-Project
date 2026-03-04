@@ -1,14 +1,72 @@
-# final project
+# EE 201A Final Project - Thermal Resistance Networks for 2.5D/3D ICs
 
-How to use the files (example):
+UCLA EE 201A -- VLSI Design Automation -- Winter 2026
 
-python3 therm.py --therm_conf
-/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/sip_hbm_dray_0
-62325_1GPU_6HBM_3D_single_GPU_on_top.xml --out_dir out_therm --heatsink_conf
-/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/heatsink_defin
-itions.xml --bonding_conf
-/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/bonding_defini
-tions.xml --heatsink heatsink_water_cooled --project_name
-ECTC_3D_1GPU_8high_120125_higherHTC --is_repeat False --hbm_stack_height 8
---system_type 3D_1GPU_top --dummy_si True --tim_cond_list 5 --infill_cond_list 1.6
---underfill_cond_list 1.6
+## Project Summary
+
+This project extracts thermal resistance networks from 2.5D and 3D integrated circuit package descriptions (GPU + 6 HBM chiplets). The starter code parses system XML configs, builds a chiplet hierarchy, performs floorplanning, and generates a 3D box stackup. The core task is implementing `simulator_simulate()` in `therm.py` to:
+
+1. Divide the 3D system into a grid of thermal resistance cells
+2. Calculate thermal resistance along X, Y, and Z for each cell
+3. Solve the resistance network (using PiSPICE or a custom solver) to extract the temperature map
+4. Return peak/average temperatures and thermal resistances per box
+
+## Quick Start
+
+```bash
+# Set up virtual environment and install dependencies
+./setup/setup.sh
+
+# Activate the environment
+source .venv/bin/activate
+
+# Run all three test configurations
+./scripts/run_all.sh
+
+# Or run individually
+./scripts/run_config1_3D_gpu_top.sh
+./scripts/run_config2_3D_gpu_bottom.sh
+./scripts/run_config3_2p5D.sh
+```
+
+See `docs/RUNNING_GUIDE.md` for detailed test commands, argument descriptions, and file documentation.
+
+## Repository Structure
+
+```
+therm.py                    # Main script + simulator_simulate() stub (YOUR CODE HERE)
+therm_xml_parser.py         # XML parser: Chiplet, Layer, Assembly classes
+rearrange.py                # Box class, overlap checking, placement utilities
+bonding_xml_parser.py       # Bonding definitions parser
+heatsink_xml_parser.py      # Heatsink definitions parser
+configs/thermal-configs/    # XML system descriptions and material definitions
+output/                     # Variable definitions (power, area, HBM count)
+thermal_simulators/         # Simulator framework (Anemoi reference, not used locally)
+setup/
+├── setup.sh                # Creates .venv and installs all dependencies
+└── requirements.txt        # Python package requirements
+scripts/
+├── run_config1_3D_gpu_top.sh
+├── run_config2_3D_gpu_bottom.sh
+├── run_config3_2p5D.sh
+└── run_all.sh
+docs/
+├── RUNNING_GUIDE.md        # Detailed running instructions and file descriptions
+└── _lab_files/             # Project spec PDF and reference papers
+out_therm/                  # Output directory for plots (generated)
+```
+
+## Three Test Configurations
+
+| Config | System Type | XML Config File | Dummy Si |
+|--------|-------------|-----------------|----------|
+| 1 | 3D, GPU on top | `sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU_on_top.xml` | Yes |
+| 2 | 3D, GPU on bottom | `sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU.xml` | Yes |
+| 3 | 2.5D | `sip_hbm_dray062325_1gpu_6hbm_2p5D.xml` | No |
+
+## Key Parameters
+
+- GPU power: 400 W
+- HBM power: 5 W per stack
+- Heatsink: Water-cooled
+- HBM stack height: 8 dies

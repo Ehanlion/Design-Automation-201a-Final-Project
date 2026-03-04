@@ -10,7 +10,6 @@ import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 import xml.etree.ElementTree as ET
-from thermal_simulators.factory import SimulatorFactory
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -36,6 +35,40 @@ from typing import List, Tuple
 import csv
 
 sns.set()
+
+def simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj=None, heatsink_list=None,
+                        heatsink_name=None, bonding_list=None, bonding_name_type_dict=None,
+                        is_repeat=False, min_TIM_height=0.01, power_dict=None,
+                        anemoi_parameter_ID=None, layers=None):
+    """
+    TODO: Implement this function.
+    
+    Takes the set of boxes as input and returns a dictionary of results.
+    Each box result is a tuple of:
+      (peak_temperature, average_temperature, thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)
+    
+    Expected return format:
+        results = {
+            "BoxName1": (peak_temp, avg_temp, R_x, R_y, R_z),
+            "BoxName2": (peak_temp, avg_temp, R_x, R_y, R_z),
+            ...
+        }
+    """
+    print("\n=== simulator_simulate called ===")
+    print(f"Number of boxes: {len(boxes)}")
+    print(f"Number of bonding boxes: {len(bonding_box_list)}")
+    print(f"Number of TIM boxes: {len(TIM_boxes)}")
+    for box in boxes:
+        print(f"  Box: {box.name}, pos=({box.start_x:.3f}, {box.start_y:.3f}, {box.start_z:.3f}), "
+              f"size=({box.width:.3f}, {box.length:.3f}, {box.height:.3f}), power={box.power:.3f}W")
+
+    results = {}
+    for box in boxes:
+        results[box.name] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    
+    print("=== simulator_simulate returning placeholder results ===")
+    print("TODO: Replace this stub with your thermal resistance network solver.\n")
+    return results
 
 # how many times*min_dist should we move
 MOVE_MULTIPLIER = 1
