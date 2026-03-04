@@ -2380,7 +2380,7 @@ class AnemoiSim(ThermalSimulator):
         # self.delete_heat_sink() #
         print("Setting up simulation environment...")
         # dedeepyo : 16-Oct-24 #
-        # layers = parse_Layer_netlist("configs/thermal-configs/layer_definitions.xml")        
+        # layers = parse_Layer_netlist("configs/layer_definitions.xml")        
         # dedeepyo : 16-Oct-24 #
         
         # dedeepyo : 1-Jan-25 : Implementing repeat simulation #

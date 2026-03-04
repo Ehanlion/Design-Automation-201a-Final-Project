@@ -98,7 +98,7 @@ def bonding_definition_list_from_file(filename):
     return bonding_list
 
 if __name__ == "__main__":
-    bonding_list = bonding_definition_list_from_file("/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/bonding_definitions.xml")
+    bonding_list = bonding_definition_list_from_file("configs/bonding_definitions.xml")
     for bonding in bonding_list:
         print(bonding)
 

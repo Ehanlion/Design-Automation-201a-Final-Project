@@ -1527,7 +1527,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
     # return #TODO: Comment out later.
 
-    layers = parse_Layer_netlist("configs/thermal-configs/layer_definitions.xml")
+    layers = parse_Layer_netlist("configs/layer_definitions.xml")
     heatsink_list = heatsink_definition_list_from_file(heatsink_conf)
     bonding_list = bonding_definition_list_from_file(bonding_conf)
     heatsink_name = heatsink

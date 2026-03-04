@@ -26,10 +26,10 @@ All commands are run from the project root directory. The config paths below use
 
 ```bash
 python3 therm.py \
-  --therm_conf configs/thermal-configs/sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU_on_top.xml \
+  --therm_conf configs/sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU_on_top.xml \
   --out_dir out_therm \
-  --heatsink_conf configs/thermal-configs/heatsink_definitions.xml \
-  --bonding_conf configs/thermal-configs/bonding_definitions.xml \
+  --heatsink_conf configs/heatsink_definitions.xml \
+  --bonding_conf configs/bonding_definitions.xml \
   --heatsink heatsink_water_cooled \
   --project_name ECTC_3D_1GPU_8high_120125_higherHTC \
   --is_repeat False \
@@ -45,10 +45,10 @@ python3 therm.py \
 
 ```bash
 python3 therm.py \
-  --therm_conf configs/thermal-configs/sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU.xml \
+  --therm_conf configs/sip_hbm_dray_062325_1GPU_6HBM_3D_single_GPU.xml \
   --out_dir out_therm \
-  --heatsink_conf configs/thermal-configs/heatsink_definitions.xml \
-  --bonding_conf configs/thermal-configs/bonding_definitions.xml \
+  --heatsink_conf configs/heatsink_definitions.xml \
+  --bonding_conf configs/bonding_definitions.xml \
   --heatsink heatsink_water_cooled \
   --project_name ECTC_3D_1GPU_8high_110325_higherHTC \
   --is_repeat False \
@@ -64,10 +64,10 @@ python3 therm.py \
 
 ```bash
 python3 therm.py \
-  --therm_conf configs/thermal-configs/sip_hbm_dray062325_1gpu_6hbm_2p5D.xml \
+  --therm_conf configs/sip_hbm_dray062325_1gpu_6hbm_2p5D.xml \
   --out_dir out_therm \
-  --heatsink_conf configs/thermal-configs/heatsink_definitions.xml \
-  --bonding_conf configs/thermal-configs/bonding_definitions.xml \
+  --heatsink_conf configs/heatsink_definitions.xml \
+  --bonding_conf configs/bonding_definitions.xml \
   --heatsink heatsink_water_cooled \
   --project_name ECTC_2p5D_1GPU_8high_110325_higherHTC \
   --is_repeat False \

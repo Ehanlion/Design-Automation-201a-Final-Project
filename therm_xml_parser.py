@@ -1291,13 +1291,13 @@ class Layer:
         return 0
 
 def parse_XML_assembly(file):
-    # assembly_fname = "configs/thermal-configs/assembly_process_definitions.xml"
+    # assembly_fname = "configs/assembly_process_definitions.xml"
     assembly_fname = file
     assembly_process_list = assembly_process_definition_list_from_file(assembly_fname)
     return assembly_process_list
 
 def parse_XML_connection_netlist(file):
-    # io_fname = "configs/thermal-configs/netlist.xml"
+    # io_fname = "configs/netlist.xml"
     connection_fname = file
     connection_list = connection_definition_list_from_file(connection_fname)
     return connection_list
@@ -1334,11 +1334,11 @@ def search_chiplet_by_name(chiplet_name, chiplet_list):
 def parse_all_chiplets(file):
 
     # first pass assembly processes
-    assembly_processes = parse_XML_assembly("configs/thermal-configs/assembly_process_definitions.xml")
+    assembly_processes = parse_XML_assembly("configs/assembly_process_definitions.xml")
     # then pass connection netlist
-    connections = parse_XML_connection_netlist("configs/thermal-configs/netlist.xml")
+    connections = parse_XML_connection_netlist("configs/netlist.xml")
     # then pass layer netlist
-    layers = parse_Layer_netlist("configs/thermal-configs/layer_definitions.xml")
+    layers = parse_Layer_netlist("configs/layer_definitions.xml")
     # variable_dict = parse_variable_dict("output/output_vars.yaml")
     # variable_dict = parse_variable_dict("output/output_vars1.yaml")
     variable_dict = parse_variable_dict("output/output_vars2.yaml")
@@ -1511,11 +1511,7 @@ def recursively_find_fakes(root, file = None):
 
 if __name__ == "__main__":
     # test code
-    # root = parse_all_chiplets("configs/thermal-configs/sip_hbm.xml")
-    # root = parse_all_chiplets("configs/thermal-configs/sip_hbm_dray_hbm_4side_64gpu.xml")
-    root = parse_all_chiplets("/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/sip_hbm_dray062325_1gpu_6hbm_2p5D.xml")
-    # root = parse_all_chiplets("/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/sip_hbm_dray_l2_gpu_hbm.xml")
-    # root = parse_all_chiplets("/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/sip_hbm_dray_hbm_top_gpu.xml")
+    root = parse_all_chiplets("configs/sip_hbm_dray062325_1gpu_6hbm_2p5D.xml")
     # f = open("output/chiplet_tree.txt", "w")
     # f.write("############ Before removing fake chiplets ##############\n\n")
     # recursively_print_chiplets("", root[0])

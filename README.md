@@ -39,7 +39,7 @@ therm_xml_parser.py         # XML parser: Chiplet, Layer, Assembly classes
 rearrange.py                # Box class, overlap checking, placement utilities
 bonding_xml_parser.py       # Bonding definitions parser
 heatsink_xml_parser.py      # Heatsink definitions parser
-configs/thermal-configs/    # XML system descriptions and material definitions
+configs/                    # XML system descriptions and material definitions
 output/                     # Variable definitions (power, area, HBM count)
 thermal_simulators/         # Simulator framework (Anemoi reference, not used locally)
 setup/
