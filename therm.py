@@ -37,38 +37,163 @@ import csv
 sns.set()
 
 def simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj=None, heatsink_list=None,
-                        heatsink_name=None, bonding_list=None, bonding_name_type_dict=None,
-                        is_repeat=False, min_TIM_height=0.01, power_dict=None,
-                        anemoi_parameter_ID=None, layers=None):
+                       heatsink_name=None, bonding_list=None, bonding_name_type_dict=None,
+                       is_repeat=False, min_TIM_height=0.01, power_dict=None,
+                       anemoi_parameter_ID=None, layers=None):
     """
-    TODO: Implement this function.
-    
-    Takes the set of boxes as input and returns a dictionary of results.
-    Each box result is a tuple of:
-      (peak_temperature, average_temperature, thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)
-    
-    Expected return format:
-        results = {
-            "BoxName1": (peak_temp, avg_temp, R_x, R_y, R_z),
-            "BoxName2": (peak_temp, avg_temp, R_x, R_y, R_z),
-            ...
-        }
+    Milestone 2A sanity solver:
+      - NO lateral coupling
+      - Each box is treated as a vertical thermal resistor to ambient:
+            Rz = t / (k * A)
+            T  = Tamb + P * Rz
+      - peak_temp == avg_temp for this simple model
+      - Rx,Ry are None for now
     """
-    print("\n=== simulator_simulate called ===")
+
+    # --- 1) Ambient temperature guess (replace later with heatsink-derived Tamb) ---
+    Tamb = 45.0
+
+    # --- 2) Helper: extract an effective thermal conductivity k (W/mK) for the box ---
+    # We’ll do a simple thickness-weighted harmonic mean across layers in stackup (best for series conduction in z).
+    # If stackup info is missing, fallback to silicon-ish.
+    def effective_k_from_stackup(stackup):
+        # stackup often looks like a list of layer objects/dicts, each with thickness and material name or k
+        # We try a few common attribute patterns.
+        if stackup is None:
+            return 150.0
+
+        layers_local = []
+        try:
+            # if stackup already a list
+            layers_local = list(stackup)
+        except Exception:
+            return 150.0
+
+        # If 'layers' dict is provided by therm.py, it may map material names to properties incl. conductivity
+        # We'll use it when available.
+        if layers is None:
+            material_k_lookup = {}
+        else:
+            material_k_lookup = layers
+
+        total_t = 0.0
+        inv_k_sum = 0.0
+
+        for ly in layers_local:
+            # thickness
+            t = None
+            for attr in ["thickness", "t", "height"]:
+                if hasattr(ly, attr):
+                    t = getattr(ly, attr)
+                    break
+            if t is None and isinstance(ly, dict):
+                t = ly.get("thickness", ly.get("t", ly.get("height", None)))
+            if t is None:
+                continue
+            t = float(t)
+            if t <= 0:
+                continue
+
+            # conductivity k
+            k = None
+            # direct k on layer
+            if hasattr(ly, "conductivity"):
+                k = getattr(ly, "conductivity")
+            elif hasattr(ly, "k"):
+                k = getattr(ly, "k")
+            elif isinstance(ly, dict):
+                k = ly.get("conductivity", ly.get("k", None))
+
+            # if not directly present, try material name -> lookup
+            if k is None:
+                mat = None
+                if hasattr(ly, "material"):
+                    mat = getattr(ly, "material")
+                elif hasattr(ly, "material_name"):
+                    mat = getattr(ly, "material_name")
+                elif isinstance(ly, dict):
+                    mat = ly.get("material", ly.get("material_name", None))
+
+                if mat is not None:
+                    # material_k_lookup could be dict of dicts or dict of floats
+                    mk = material_k_lookup.get(mat, None)
+                    if isinstance(mk, dict):
+                        k = mk.get("conductivity", mk.get("k", None))
+                    elif mk is not None:
+                        k = mk
+
+            if k is None:
+                # fallback
+                k = 150.0
+
+            k = float(k)
+            if k <= 0:
+                continue
+
+            total_t += t
+            inv_k_sum += t / k
+
+        if total_t <= 0 or inv_k_sum <= 0:
+            return 150.0
+
+        # harmonic mean for series layers
+        return total_t / inv_k_sum
+
+    # --- 3) Compute temps per box ---
+    results = {}
+
+    print("\n=== simulator_simulate called (sanity solver: vertical-only) ===")
     print(f"Number of boxes: {len(boxes)}")
     print(f"Number of bonding boxes: {len(bonding_box_list)}")
     print(f"Number of TIM boxes: {len(TIM_boxes)}")
-    for box in boxes:
-        print(f"  Box: {box.name}, pos=({box.start_x:.3f}, {box.start_y:.3f}, {box.start_z:.3f}), "
-              f"size=({box.width:.3f}, {box.length:.3f}, {box.height:.3f}), power={box.power:.3f}W")
 
-    results = {}
     for box in boxes:
-        results[box.name] = (0.0, 0.0, 0.0, 0.0, 0.0)
-    
-    print("=== simulator_simulate returning placeholder results ===")
-    print("TODO: Replace this stub with your thermal resistance network solver.\n")
+        # --- Geometry (inputs appear to be in mm) ---
+        w_mm = float(box.width)
+        l_mm = float(box.length)
+        t_mm = float(box.height)
+
+        # Convert to meters
+        w_m = w_mm * 1e-3
+        l_m = l_mm * 1e-3
+        t_m = t_mm * 1e-3
+
+        A = w_m * l_m     # m^2
+        t = t_m           # m
+        P = float(getattr(box, "power", 0.0))
+
+        if box.name.endswith(".GPU"):
+            print("DEBUG GPU geom raw:", box.width, box.length, box.height, "power", P)
+
+        if box.name.endswith(".GPU"):
+            print("DEBUG GPU (mm):", w_mm, l_mm, t_mm, "A(mm^2)=", w_mm*l_mm)
+            print("DEBUG GPU (m): ", w_m,  l_m,  t_m,  "A(m^2)=", A)
+            print("DEBUG GPU k_eff:", k_eff, "Rz:", Rz, "dT:", P*Rz)    
+
+        # Avoid divide by zero
+        if A <= 0 or t <= 0:
+            Rz = float("inf")
+            T = Tamb
+        else:
+            k_eff = effective_k_from_stackup(getattr(box, "stackup", None))
+            # Avoid zero conductivity
+            if k_eff <= 0:
+                k_eff = 1e-9
+            Rz = t / (k_eff * A)
+            T = Tamb + P * Rz
+
+        # For this milestone, peak=avg and Rx/Ry undefined
+        results[box.name] = (T, T, None, None, Rz)
+
+    # quick summary
+    hot = sorted(results.items(), key=lambda kv: kv[1][0], reverse=True)[:10]
+    print("Top 10 hottest boxes (sanity model):")
+    for name, (Tpk, _, _, _, Rz) in hot:
+        print(f"  {name:60s}  T={Tpk:.2f}C  Rz={Rz:.6e} K/W")
+
+    print("=== simulator_simulate returning sanity results ===\n")
     return results
+
 
 # how many times*min_dist should we move
 MOVE_MULTIPLIER = 1
