@@ -74,6 +74,8 @@ the box stackup into a resistive grid and solves for temperatures.
 3. **Added** `simulator_simulate()` stub function that returns zero-valued
    results for every box, allowing the pipeline to run end-to-end without
    a solver implementation.
-4. **Added** result printing and YAML output after `simulator_simulate()`
-   returns, so each run produces a `<project_name>_results.yaml` file in
-   `out_therm/`.
+4. **Replaced** the bare `return #TODO: Comment out later` after
+   `simulator_simulate()` with result-printing and YAML-writing logic.
+   The original code exited the `therm()` function immediately after the
+   simulation, so no output file was ever written. Now each run produces
+   a `<project_name>_results.yaml` in `out_therm/`.

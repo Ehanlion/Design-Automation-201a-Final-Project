@@ -132,3 +132,7 @@ Power assumptions (from the project PDF):
   last configuration's plots persist.
 - The `configs/thermal-configs/layer_definitions.xml` file must exist locally;
   it is hardcoded at line ~1497 of `therm.py`.
+- The original code had a bare `return` immediately after calling
+  `simulator_simulate()` (tagged `#TODO: Comment out later`), which caused the
+  function to exit before writing any results file. This was replaced with
+  result-printing and YAML-writing logic followed by the `return`.

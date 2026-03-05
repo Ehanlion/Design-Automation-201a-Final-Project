@@ -154,7 +154,7 @@ def heatsink_definition_list_from_file(filename):
     return heatsink_list
 
 if __name__ == "__main__":
-    heatsink_list = heatsink_definition_list_from_file("/app/nanocad/projects/deepflow_thermal/DeepFlow/configs/thermal-configs/heatsink_definitions.xml")
+    heatsink_list = heatsink_definition_list_from_file("configs/heatsink_definitions.xml")
     for heatsink in heatsink_list:
         print(heatsink)
         # if(heatsink.get_bind_to_ambient()):

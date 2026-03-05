@@ -81,7 +81,7 @@ class AnemoiSim(ThermalSimulator):
             host='https://anemoisoftware.com/api',
             api_key={
                 # api key here. Remove if hosted online (e.g. github)!
-                'Authorization': ''  # TODO: paste API key here
+                'Authorization': <paste API key here!>
             },
             api_key_prefix={
                 'Authorization': 'Token'
@@ -2380,7 +2380,7 @@ class AnemoiSim(ThermalSimulator):
         # self.delete_heat_sink() #
         print("Setting up simulation environment...")
         # dedeepyo : 16-Oct-24 #
-        # layers = parse_Layer_netlist("configs/thermal-configs/layer_definitions.xml")        
+        # layers = parse_Layer_netlist("configs/layer_definitions.xml")        
         # dedeepyo : 16-Oct-24 #
         
         # dedeepyo : 1-Jan-25 : Implementing repeat simulation #
