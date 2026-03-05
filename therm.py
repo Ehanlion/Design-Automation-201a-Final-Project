@@ -1670,7 +1670,20 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         simulation_end_time = time.time()
         print("Simulation finished at ", simulation_end_time)
         print("Time taken for simulation: ", simulation_end_time - simulation_start_time)
-        return #TODO: Comment out later
+
+        print("\n=== Simulation Results ===")
+        for box_name, values in results.items():
+            peak_temp, avg_temp, r_x, r_y, r_z = values
+            print(f"  {box_name}: peak={peak_temp:.2f}C, avg={avg_temp:.2f}C, Rx={r_x:.4f}, Ry={r_y:.4f}, Rz={r_z:.4f}")
+        print("=========================\n")
+
+        os.makedirs(out_dir, exist_ok=True)
+        yaml_output_path = os.path.join(out_dir, project_name + "_results.yaml")
+        with open(yaml_output_path, 'w') as f:
+            yaml.dump(results, f, default_flow_style=False)
+        print(f"Results written to {yaml_output_path}")
+
+        return
 
     # dedeepyo : 4-Jun-25
 
