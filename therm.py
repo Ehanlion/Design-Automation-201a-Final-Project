@@ -10,7 +10,6 @@ import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 import xml.etree.ElementTree as ET
-from thermal_simulators.factory import SimulatorFactory
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -643,6 +642,33 @@ def find_deepest_node(chiplet_tree):
     traverse(root, 0)
     return deepest_node
 # dedeepyo : 03-Dec-2025
+
+def simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj=None,
+                        heatsink_list=None, heatsink_name=None, bonding_list=None,
+                        bonding_name_type_dict=None, is_repeat=False,
+                        min_TIM_height=0.01, power_dict=None,
+                        anemoi_parameter_ID=None, layers=None):
+    """
+    Stub for the thermal resistance network solver.
+
+    Students must replace this with their own implementation that:
+      1. Divides the 3D box stackup into a uniform (or non-uniform) grid.
+      2. Computes thermal resistances along X, Y, and Z for each grid cell.
+      3. Feeds the resistance network to PiSPICE (or a local solver).
+      4. Returns peak/average temperatures and per-box resistances.
+
+    Returns:
+        dict  –  { "BoxName": (peak_temp, avg_temp, R_x, R_y, R_z), ... }
+    """
+    print("[simulator_simulate] STUB – returning placeholder values for every box.")
+    print(f"  Received {len(boxes)} boxes, {len(bonding_box_list)} bonding boxes, "
+          f"{len(TIM_boxes)} TIM boxes")
+    print(f"  Heatsink: {heatsink_name}, is_repeat: {is_repeat}")
+
+    results = {}
+    for box in boxes:
+        results[box.name] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    return results
 
 @click.command("standalone")
 @click.option('--therm_conf', help='The thermal config file')
@@ -1623,21 +1649,30 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     # box_temperatures = {box.name : [] for box in boxes}
     # print(box_temperatures)
     # results = simulator.simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj = heatsink_obj, heatsink_list = heatsink_list, heatsink_name = heatsink_name, bonding_list = bonding_list, bonding_name_type_dict = bonding_name_type_dict, is_repeat = is_repeat,  min_TIM_height = min_TIM_height, layers = layers) #
-    anemoi_parameter_ID = {} # Uncomment
-    # anemoi_parameter_ID = {'interposer_power': 1949, 'substrate_power': 1950, 'PCB_power': 1951, 'GPU_power': 1946, 'Power_Source_power': 1952, 'HBM_power': 1947, 'GPU_HTC_power': 1953, 'HBM_l_power': 1948, 'HBM_HTC_power': 1954}
-    # print("Power dict initialized: ", power_dict)
+    anemoi_parameter_ID = {}
 
     if(is_repeat == False):
         simulation_start_time = time.time()
         print("Starting simulation at ", simulation_start_time)
         
-        is_repeat = is_repeat # False # False # True if the simulation is repeated with different powers, False if only one simulation is run.
-        results = simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj = heatsink_obj, heatsink_list = heatsink_list, heatsink_name = heatsink_name, bonding_list = bonding_list, bonding_name_type_dict = bonding_name_type_dict, is_repeat = is_repeat,  min_TIM_height = min_TIM_height, power_dict = power_dict, anemoi_parameter_ID = anemoi_parameter_ID, layers = layers) #
+        results = simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj = heatsink_obj, heatsink_list = heatsink_list, heatsink_name = heatsink_name, bonding_list = bonding_list, bonding_name_type_dict = bonding_name_type_dict, is_repeat = is_repeat,  min_TIM_height = min_TIM_height, power_dict = power_dict, anemoi_parameter_ID = anemoi_parameter_ID, layers = layers)
         
         simulation_end_time = time.time()
         print("Simulation finished at ", simulation_end_time)
         print("Time taken for simulation: ", simulation_end_time - simulation_start_time)
-        return #TODO: Comment out later
+        
+        print("\n=== Simulation Results ===")
+        for box_name, values in results.items():
+            peak_temp, avg_temp, r_x, r_y, r_z = values
+            print(f"  {box_name}: peak={peak_temp:.2f}C, avg={avg_temp:.2f}C, Rx={r_x:.4f}, Ry={r_y:.4f}, Rz={r_z:.4f}")
+        print("=========================\n")
+        
+        yaml_output_path = os.path.join(out_dir, project_name + "_results.yaml")
+        with open(yaml_output_path, 'w') as f:
+            yaml.dump(results, f, default_flow_style=False)
+        print(f"Results written to {yaml_output_path}")
+        
+        return
 
     # dedeepyo : 4-Jun-25
 
