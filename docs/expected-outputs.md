@@ -120,11 +120,8 @@ Power assumptions (from the project PDF):
 
 ## Gotchas and Notes
 
-- The old `from thermal_simulators.factory import SimulatorFactory` import was
-  removed from `therm.py` because `anemoi_sim.py` had a broken API-key
-  placeholder (`<paste API key here!>`) that caused a `SyntaxError` on import.
-  The `SimulatorFactory` was unused.  The placeholder in `anemoi_sim.py` was
-  also fixed (replaced with an empty string).
+- The `thermal_simulators/` directory (legacy Anemoi cloud-API code) has been
+  removed. Reference data was extracted to `docs/anemoi-reference.md`.
 - The `is_repeat` flag should be `False` for initial runs.  When set to `True`
   the code skips `simulator_simulate()` and enters the iterative calibration
   loop instead.

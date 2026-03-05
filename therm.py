@@ -1,175 +1,140 @@
-# this file uses click to parse a thermal config, a deepflow config, and a deepflow output file.
-# it then performs thermal analysis.
+"""
+Thermal analysis tool for 2.5-D and 3-D GPU + HBM chiplet systems.
 
-# TODO: Before pushing this anywhere remove the token from thermal_simulators/anemoi_sim.py!!!!
+Uses click to parse thermal configs, performs chiplet placement and sizing,
+and runs thermal resistance network simulation.
+"""
+
+import csv
+import math
+import os
+import pickle
+import re
+import time
+from pathlib import Path
+from typing import List, Tuple
 
 import click
-import yaml
-import sys
-import math
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
-import xml.etree.ElementTree as ET
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
+import yaml
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-# from rearrange import *
-from rearrange import *
-from therm_xml_parser import *
-import time
-from bonding_xml_parser import *
-from heatsink_xml_parser import *
-import pickle
-import os
-import subprocess
-import re
-from collections import defaultdict
-
-import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-import re
-from pathlib import Path
-from typing import List, Tuple
-import csv
+from rearrange import *
+from therm_xml_parser import *
+from bonding_xml_parser import *
+from heatsink_xml_parser import *
 
 sns.set()
 
-def simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj=None, heatsink_list=None,
-                        heatsink_name=None, bonding_list=None, bonding_name_type_dict=None,
-                        is_repeat=False, min_TIM_height=0.01, power_dict=None,
-                        anemoi_parameter_ID=None, layers=None):
+# TODO: PROJECT - These constants affect chiplet placement overlap checking.
+MOVE_MULTIPLIER = 1  # How many times min_dist to move per step
+INFLATION = 1       # Inflation factor for overlap checking
+
+# =============================================================================
+# TODO: PROJECT IMPLEMENTATION - Thermal Resistance Network Solver
+# =============================================================================
+# This is the main function you must implement for the EE201A Final Project.
+# Replace the stub below with your thermal resistance network solver.
+#
+# Implementation steps (from docs/expected-outputs.md):
+#   1. Divide the 3-D box stackup into a grid of small uniform (or non-uniform) cells.
+#   2. Compute thermal resistance (R_x, R_y, R_z) of each cell using material
+#      conductivities from `layers` and cell geometry.
+#   3. Feed the resistance network into PiSPICE or a custom RC solver.
+#   4. Extract peak and average temperatures per box from the solver output.
+#   5. Return the results dictionary in the format shown below.
+#
+# Power assumptions (from project PDF): GPU = 400 W, each HBM = 5 W
+# =============================================================================
+def simulator_simulate(
+    boxes,
+    bonding_box_list,
+    TIM_boxes,
+    heatsink_obj=None,
+    heatsink_list=None,
+    heatsink_name=None,
+    bonding_list=None,
+    bonding_name_type_dict=None,
+    is_repeat=False,
+    min_TIM_height=0.01,
+    power_dict=None,
+    anemoi_parameter_ID=None,
+    layers=None,
+):
     """
-    TODO: Implement this function.
-    
-    Takes the set of boxes as input and returns a dictionary of results.
-    Each box result is a tuple of:
-      (peak_temperature, average_temperature, thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)
-    
-    Expected return format:
-        results = {
-            "BoxName1": (peak_temp, avg_temp, R_x, R_y, R_z),
-            "BoxName2": (peak_temp, avg_temp, R_x, R_y, R_z),
-            ...
-        }
+    Solve the thermal resistance network and return per-box temperature results.
+
+    This is the core simulation function for the EE201A Final Project. It takes
+    the 3-D box stackup (chiplets, bonding layers, TIM, heatsink) and computes
+    steady-state temperatures using a thermal resistance network model.
+
+    Args:
+        boxes: List of Box objects representing chiplets and thermal elements.
+        bonding_box_list: List of bonding layer boxes between chiplets.
+        TIM_boxes: List of Thermal Interface Material boxes to heatsink.
+        heatsink_obj: Heatsink definition object (optional).
+        heatsink_list: List of heatsink objects (optional).
+        heatsink_name: Name of heatsink configuration (optional).
+        bonding_list: Bonding definitions from XML (optional).
+        bonding_name_type_dict: Mapping of bonding types (optional).
+        is_repeat: If True, skip simulation for calibration iterations.
+        min_TIM_height: Minimum TIM layer height in mm.
+        power_dict: Per-chiplet-type power values (optional).
+        anemoi_parameter_ID: Legacy parameter (optional).
+        layers: Layer definitions with material conductivities (optional).
+
+    Returns:
+        Dictionary mapping box names to tuples of:
+            (peak_temperature_C, average_temperature_C, R_x_K_per_W, R_y_K_per_W, R_z_K_per_W)
     """
+    # TODO: Replace this stub with your thermal resistance network solver.
     print("\n=== simulator_simulate called ===")
     print(f"Number of boxes: {len(boxes)}")
     print(f"Number of bonding boxes: {len(bonding_box_list)}")
     print(f"Number of TIM boxes: {len(TIM_boxes)}")
     for box in boxes:
-        print(f"  Box: {box.name}, pos=({box.start_x:.3f}, {box.start_y:.3f}, {box.start_z:.3f}), "
-              f"size=({box.width:.3f}, {box.length:.3f}, {box.height:.3f}), power={box.power:.3f}W")
+        print(
+            f"  Box: {box.name}, pos=({box.start_x:.3f}, {box.start_y:.3f}, {box.start_z:.3f}), "
+            f"size=({box.width:.3f}, {box.length:.3f}, {box.height:.3f}), power={box.power:.3f}W"
+        )
 
     results = {}
     for box in boxes:
         results[box.name] = (0.0, 0.0, 0.0, 0.0, 0.0)
-    
+
     print("=== simulator_simulate returning placeholder results ===")
     print("TODO: Replace this stub with your thermal resistance network solver.\n")
     return results
 
-# how many times*min_dist should we move
-MOVE_MULTIPLIER = 1
-# how much should we inflate for overlap checking
-INFLATION = 1
 
-class Pin():
-    def __init__(self,name,parent_name):
+class Pin:
+    """Represents a pin in the chiplet floorplan, assignable to an edge."""
+
+    def __init__(self, name, parent_name):
         self.name = name
         self.parent_name = parent_name
         self.edge_name = None
 
-    def assign_to_edge(self,edge_name):
+    def assign_to_edge(self, edge_name):
+        """Assign this pin to a specific edge."""
         self.edge_name = edge_name
 
     def is_assigned(self):
+        """Return True if this pin has been assigned to an edge."""
         return self.edge_name is not None
 
-# def parse_pin_map(pin_map,gpu_coords):
 
-#     # print("GPU coords received:",gpu_coords)
-#     # this is a pin map
-#     #   pin_map: [
-#     #     "PIXXX
-#     #      XIXXX
-#     #      XIDIP
-#     #      XIXXX
-#     #      PIXXX"
-#     #   ]
-#     # P is pin, D is device, X is air, I is ISOLATOR
-#     # lower left corner of the GPU is (gpu_coords[0],gpu_coords[1]).
-#     # top right is (gpu_coords[2],gpu_coords[3])
-#     # the pin map is a string. We need to parse it and assign coordinates to each pin.
-#     pin_coords = []
-#     # the pin map could be any size, but has to be odd x odd number. check that first
-#     pin_map = pin_map[0].split(' ')
-#     for i in range(len(pin_map)):
-#         # strip whitespace
-#         pin_map[i] = pin_map[i].strip()
-#     num_rows = len(pin_map)
-#     num_cols = len(pin_map[0])
-#     if num_rows % 2 == 0 or num_cols % 2 == 0:
-#         raise ValueError("Pin map must be odd x odd")
-#     # now parse the pin map
-#     die_length = gpu_coords[3] - gpu_coords[1]
-#     die_width = gpu_coords[2] - gpu_coords[0]
-#     # now subdivide that into num_rows x num_cols
-#     # for example, if 3x3 and die_length is 10, I want points at:
-#     # 0, 5, 10
-#     row_height = die_length / (num_rows-1)
-#     col_width = die_width / (num_cols-1)
-#     for i in range(num_rows):
-#         for j in range(num_cols):
-#             if pin_map[i][j] == 'P':
-#                 pin_coords.append((gpu_coords[0]+j*col_width,gpu_coords[1]+(num_rows-1-i)*row_height))
+def draw_fig(boxes, out_dir, out_name, limits):
+    """
+    Generate a 2-D top-down placement plot of chiplets on the substrate.
 
-#     # I now also want to extract isolator coordinates.
-#     # the isolators are thin strips, so we want to merge isolators across columns and rows.
-#     isolator_coords = []
-#     for i in range(num_rows):
-#         for j in range(num_cols):
-#             if pin_map[i][j] == 'I':
-#                 # check if this is a new isolator
-#                 if (i == 0 or pin_map[i-1][j] != 'I') and (j == 0 or pin_map[i][j-1] != 'I'):
-#                     # this is the start of a new isolator
-#                     start_x = gpu_coords[0]+(j-1)*col_width
-#                     start_y = gpu_coords[1]+(num_rows-1-i)*row_height
-#                     # now find the end of the isolator
-#                     end_x = start_x
-#                     end_y = start_y
-#                     j_acc = j
-#                     while j < num_cols and pin_map[i][j_acc] == 'I':
-#                         j_acc += 1
-#                         if j_acc == num_cols:
-#                             break
-#                         end_x += col_width
-#                     i_acc = i
-#                     while i < num_rows and pin_map[i_acc][j] == 'I':
-#                         i_acc += 1
-#                         if i_acc == num_rows:
-#                             break
-#                         end_y -= row_height
-#                     # now, remember that isolators are not boxes but lines.
-#                     # so we need to ensure that start_x == end_x
-#                     # but do we set start_x = end_x or end_x = start_x?
-#                     # this depends on whether the isolator is to the left or to the right
-#                     middle_x = gpu_coords[0]+(num_cols-1)/2*col_width
-#                     if end_x <= middle_x:
-#                         # left of gpu
-#                         start_x = gpu_coords[0]
-#                         end_x = start_x
-#                     else:
-#                         # right of gpu
-#                         end_x = gpu_coords[2]
-#                         start_x = end_x
-#                     isolator_coords.append((start_x,start_y,end_x,end_y))
-
-#     # print("Isolator coords:",isolator_coords)
-#     return pin_coords, isolator_coords
-
-def draw_fig(boxes,out_dir,out_name,limits):
+    Colors boxes by type: interposer (black), HBM (blue), wafer (green), other (red).
+    Saves the figure to out_dir/out_name.png.
+    """
     fig, ax = plt.subplots()
     ax.set_aspect('equal')
     for box in boxes:
@@ -181,60 +146,17 @@ def draw_fig(boxes,out_dir,out_name,limits):
             ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='green'))
         else:
             ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='red'))
-        # ax.text(box.start_x+box.width/2,box.start_y+box.length/2,box.name,ha='center',va='center', color='white')
-    plt.xlim(limits[0],limits[1])
+    plt.xlim(limits[0], limits[1])
     plt.ylim(limits[2],limits[3])
     plt.savefig(out_dir+'/'+out_name+'.png')
     plt.close()
 
-# def draw_fig_3D_alt(boxes, out_dir, out_name):
-#     fig = plt.figure()
-#     ax = fig.add_subplot(111, projection='3d')
-    
-#     collections = []
-
-#     for box in boxes:
-#         x = [box.start_x, box.start_x + box.width, box.start_x + box.width, box.start_x, box.start_x]
-#         y = [box.start_y, box.start_y, box.start_y + box.length, box.start_y + box.length, box.start_y]
-#         z = [box.start_z] * 5  # base z level
-#         z_top = [box.start_z + box.height] * 5  # top z level
-
-#         verts = [list(zip(x, y, z)),
-#                 list(zip(x, y, z_top))]
-
-#         # Sides of the box
-#         for i in range(4):
-#             verts.append([(x[i], y[i], z[i]), (x[i+1], y[i+1], z[i+1]), 
-#                         (x[i+1], y[i+1], z_top[i+1]), (x[i], y[i], z_top[i])])
-
-#         # set zpos according to x position
-#         # closer means higher zpos
-
-#         zpos = box.start_x
-
-#         if box.name == 'interposer':
-#             color = 'black'
-#         elif 'HBM' in box.name:
-#             color = 'blue'
-#         else:
-#             color = 'red'
-
-
-#         poly = Poly3DCollection(verts, facecolors=color, edgecolors='k', alpha=0.7)  # Adjust alpha for better visibility
-#         poly.set_sort_zpos(zpos)
-#         collections.append((poly, box))
-
-#     for poly, box in collections:
-#         ax.add_collection3d(poly)
-#         # ax.text(box.start_x + box.width / 2, box.start_y + box.length / 2, box.start_z + box.height / 2, box.name, ha='center', va='center', color='white')
-
-#     ax.set_xlim(-15, 75)
-#     ax.set_ylim(-15, 75)
-#     ax.set_zlim(0, 90) 
-#     plt.savefig(out_dir + '/' + out_name + '3D.png')
-#     plt.close()
-
 def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
+    """
+    Generate a 3-D visualization of the full box stackup with zoomed view.
+
+    Renders each box as a 3-D cuboid with colors by type. Saves to out_dir/out_name3D.png.
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     
@@ -271,9 +193,6 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
 
     for poly, box in collections:
         ax.add_collection3d(poly)
-        # Uncomment to add labels
-        # ax.text(box.start_x + box.width / 2, box.start_y + box.length / 2, box.start_z + box.height / 2, box.name, ha='center', va='center', color='white')
-
     ax.set_xlim(limits[0], limits[1])
     ax.set_ylim(limits[0], limits[1])
     ax.set_zlim(limits[0], int(limits[1]//2))  
@@ -285,7 +204,11 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
     plt.close()
 
 def determine_draw_lim(boxes):
-    # find the min and max x and y
+    """
+    Compute axis limits for 2-D/3-D plots from box extents.
+
+    Returns (min_x-5, max_x+5, min_y-5, max_y+5) for plot boundaries.
+    """
     min_x = 100000
     max_x = -100000
     min_y = 100000
@@ -303,19 +226,25 @@ def determine_draw_lim(boxes):
     return min_x-5,max_x+5,min_y-5,max_y+5
 
 
-# dedeepyo : 25-Feb-2025 : Implementing power source representation.
 def recursively_lift_box(chiplet, box_list, height):
+    """
+    Recursively shift a chiplet and all its children upward by the given height.
+
+    Updates start_z for each box in the chiplet subtree.
+    """
     box = chiplet.get_box_representation()
     box.start_z = box.start_z + height
-    # print("Lifting box " + box.name + " to z : " + str(box.start_z))
     for child in chiplet.get_child_chiplets():
         recursively_lift_box(child, box_list, height)
     return
 
-def create_power_source_backside(boxes, efficiency = 0.9):
-    # ps = Box(x_coord,y_coord,z_coord,width,length,height,power,stackup,0,"Power Source")
-    # recursively_lift_box(boxes[0].chiplet_parent, boxes, ps.height)
-    # boxes.append(ps)
+def create_power_source_backside(boxes, efficiency=0.9):
+    """
+    Set power for the backside power delivery source based on total system power.
+
+    The power source dissipates (1-efficiency)*total_power/efficiency to model
+    conversion losses. Assumes exactly one Power_Source box exists.
+    """
     total_power = 0
     for box in boxes:
         total_power += box.power
@@ -323,25 +252,23 @@ def create_power_source_backside(boxes, efficiency = 0.9):
     ps = [box for box in boxes if box.chiplet_parent.get_chiplet_type() == "Power_Source"][0] # Assuming only one power source. For now, it is at bottom. backside power delivery.
     ps.power = (1 - efficiency) * total_power / efficiency
     ps.chiplet_parent.set_power(ps.power)
-    # print("Power source power : " + str(ps.power))
-# dedeepyo : 25-Feb-2025 #
 
-# dedeepyo : 30-Jan-2025 : Bonding layer addition 
-# height : Thickness of the bonding layer; determined based on input from Krutikesh.
-# For Box, both z and dz are in mm. For PCBLayer, thickness is in um. For PCB, z is in mm.
-# height here is in um.
+
 def calculate_ratio(bonding, box):
+    """
+    Compute the volume ratio of bonding material to total bonding layer for a box.
+
+    Uses bonding pitch, offset, diameter, and shape (sphere/cylinder/cuboid) to
+    determine how much of the layer is conductive material vs. filler.
+    """
     radius = bonding.get_diameter() / 2
     n_min_x = max(math.ceil((radius - bonding.get_offset()) / bonding.get_pitch()), 0)
     n_max_x = math.floor((1000 * box.width - bonding.get_offset() - radius) / bonding.get_pitch())
     n_x = n_max_x - n_min_x + 1
-    # print("n_min_x : " + str(n_min_x) + " n_max_x : " + str(n_max_x))
     n_min_y = max(math.ceil((radius - bonding.get_offset()) / bonding.get_pitch()), 0)
     n_max_y = math.floor((1000 * box.length - bonding.get_offset() - radius) / bonding.get_pitch())
     n_y = n_max_y - n_min_y + 1
-    # print("n_min_y : " + str(n_min_y) + " n_max_y : " + str(n_max_y))
-    # print(n_x, n_y, box.width, box.length, radius, bonding.get_offset(), bonding.get_pitch())
-    if(n_x <= 0 or n_y <= 0):
+    if n_x <= 0 or n_y <= 0:
         return 0.00
     else:
         if(bonding.get_shape() == "sphere"):
@@ -352,16 +279,17 @@ def calculate_ratio(bonding, box):
             unit_volume = bonding.get_cross_section_area() * bonding.get_height()
         else:
             raise Exception("Invalid bonding shape")
-        
-        # print("Unit volume is : " + str(unit_volume))
+
         material_volume = unit_volume * n_x * n_y
-        # print("Material volume is : " + str(material_volume))
-        # print("Bonding layer volume is : " + str(1000 * box.width * 1000 * box.length * bonding.get_height()))
         ratio = material_volume / (1000 * box.width * 1000 * box.length * bonding.get_height())
         return ratio
 
-# dedeepyo : 12-Feb-2025 : Implementing real children finder to avoid creating bonding for fake chiplets.
 def get_real_children_recursive(chiplet_list):
+    """
+    Recursively collect all real (non-fake) child chiplets from a list.
+
+    Traverses through fake chiplets to find their real descendants.
+    """
     real_children = []
     fake_children = []
     for chiplet in chiplet_list:
@@ -376,9 +304,15 @@ def get_real_children_recursive(chiplet_list):
         real_children.extend(get_real_children_recursive(fake_children))
 
     return real_children
-# dedeepyo : 12-Feb-2025 #
+
 
 def create_all_bonding(box_list, name_type_dict, bonding_list):
+    """
+    Create bonding layer boxes between all adjacent chiplets in the stackup.
+
+    Uses bonding definitions and name_type_dict to determine bonding types.
+    Returns list of bonding boxes and updates box_list with lifted positions.
+    """
     bonding_box_list = []
 
     bondings = {b.get_name():b for b in bonding_list}
@@ -397,18 +331,19 @@ def create_all_bonding(box_list, name_type_dict, bonding_list):
     
     return bonding_box_list
 
-# Assuming bonding only between interposer and GPU or HBM, not between stacked chiplets. # This assumption is no longer valid.
 def create_bonding(box_list, base_chiplet, bonding_dict, bonding_box_list):
+    """
+    Recursively create bonding boxes between base_chiplet and its children.
+
+    Looks up bonding material and dimensions from bonding_dict, computes
+    effective conductivity via calculate_ratio, and lifts child chiplets.
+    """
     children_of_base = base_chiplet.get_child_chiplets()
     for chiplet in children_of_base:
         try:
             bonding = bonding_dict[base_chiplet.get_chiplet_type()].get(chiplet.get_chiplet_type())
-        except:
+        except Exception:
             bonding = None
-
-        # dedeepyo : 03-Dec-2025 : Testing bonding for GPU on top.
-        # print(f"Bonding for {base_chiplet.get_chiplet_type()} with {chiplet.get_chiplet_type()} above it.")
-        # dedeepyo : 03-Dec-2025
 
         if bonding is not None:
             material = bonding.get_material()
@@ -428,41 +363,38 @@ def create_bonding(box_list, base_chiplet, bonding_dict, bonding_box_list):
             recursively_lift_box(chiplet, box_list, height_mm)
             bonding_box_list.append(bonding_box)
 
-        # if(bonding_dict.get(chiplet.get_chiplet_type()) is not None):
-        #     create_bonding(box_list, chiplet, bonding_dict, bonding_box_list)
-
         create_bonding(box_list, chiplet, bonding_dict, bonding_box_list)
 
 def recursively_lift_box(chiplet, box_list, height):
+    """
+    Recursively shift a chiplet and all its children upward by the given height.
+
+    Duplicate of the function above; both are used in different contexts.
+    """
     box = chiplet.get_box_representation()
     box.start_z = box.start_z + height
-    # print("Lifting box " + box.name + " to z : " + str(box.start_z))
     for child in chiplet.get_child_chiplets():
         recursively_lift_box(child, box_list, height)
     return
 
-# dedeepyo : 9-Apr-25 : Copying over TIM creation.
-def create_TIM_to_heatsink(box_list, material = "TIM0p5", min_TIM_height = 0.1, system_type = None):
+
+def create_TIM_to_heatsink(box_list, material="TIM0p5", min_TIM_height=0.1, system_type=None):
+    """
+    Create Thermal Interface Material boxes between top chiplets and heatsink.
+
+    For non-3D_1GPU_top: creates TIM for each top-level chiplet. Always adds
+    one TIM box covering the interposer/substrate area. Returns list of TIM boxes.
+    """
     TIM_boxes = []
     z_min = max([box.end_z for box in box_list])
-    z = z_min
-    # top_box = [b for b in box_list if b.end_z == z_min][0]
-    # print("Highest box is : " + top_box.name + " which ends at z : " + str(z_min))
-    # print("The bottom of heat sink is at z : " + str(z))
     if system_type != "3D_1GPU_top":
         for box in box_list:
-            # dedeepyo : 12-Feb-25 : A fake chiplet always has child chiplets; that is the purpose why it is made. Also, a box here is never fake.
-            if(box.chiplet_parent.get_child_chiplets() == []):
-                tim_height = z - box.end_z
-                # if(tim_height != 0):
-                if(tim_height > 0.0001):
-                    # print("TIM height is : " + str(tim_height) + " for box " + box.name + " which ends at z : " + str(box.end_z))
+            if box.chiplet_parent.get_child_chiplets() == []:
+                tim_height = z_min - box.end_z
+                if tim_height > 0.0001:
                     tim_box = Box(box.start_x, box.start_y, box.end_z, box.width, box.length, tim_height, 0.0, f"1:{material}", 0.0, f"{box.name}_TIM")
                     TIM_boxes.append(tim_box)
-                    # print(tim_data["name"] + " starts from z : " + tim_data["z"] + " and has height : " + tim_data["dz"])
-                # else:
-                #     print("The top of PCB " + box.name + " is at the same level as the bottom of heat sink!")
-        
+
     intp_list = [b for b in box_list if b.chiplet_parent.get_chiplet_type() == "interposer" or b.chiplet_parent.get_chiplet_type() == "substrate"]
     intp = intp_list[0]
     for i in intp_list:
@@ -473,14 +405,26 @@ def create_TIM_to_heatsink(box_list, material = "TIM0p5", min_TIM_height = 0.1, 
     TIM_boxes.append(tim_box)
     return TIM_boxes
 
-# dedeepyo : 21-Jun-25 : Creating multiple heat sinks for a chiplet tree.
 def calculate_GPU_HBM_HTC(box_list, power_dict, hc):
+    """
+    Compute per-chiplet-type heat transfer coefficients for GPU vs HBM.
+
+    Returns (GPU_HTC, HBM_HTC) in W/(m^2·K). Currently returns fixed values.
+    """
     # Assumption that we already have temperature data with default HTC hc. We use those temperatures to calculate the individual HTC for GPU and HBM.
     GPU_HTC = 15236.73003 # hc
     HBM_HTC = 2729.690335 # hc
     return GPU_HTC, HBM_HTC
 
-def create_multiple_heat_sinks(box_list, heatsink_list, heatsink_name, power_dict, min_TIM_height = 0.01): # , scale_factor_x = 0, scale_factor_y = 0, area_scale_factor = 0):
+def create_multiple_heat_sinks(
+    box_list, heatsink_list, heatsink_name, power_dict, min_TIM_height=0.01
+):
+    """
+    Create separate heatsink objects for each top-level chiplet (GPU, HBM).
+
+    Uses per-type HTC from calculate_GPU_HBM_HTC. Returns heatsink data list
+    and updated power_dict with GPU_HTC and HBM_HTC entries.
+    """
     # dedeepyo : 7-Feb-2025 : Heatsink object creation.
     heatsinks = [h for h in heatsink_list if h.get_name() == heatsink_name]
     if(heatsinks is None):
@@ -495,39 +439,15 @@ def create_multiple_heat_sinks(box_list, heatsink_list, heatsink_name, power_dic
     dz = heatsinks[0].get_base_thickness()
     bind_to_ambient = heatsinks[0].get_bind_to_ambient()
 
-    if(fin_number == 0):
-        if(fin_thickness > 0):
-            fin_number = int(dx / (2 * fin_thickness))
-    
     excluded_types = ["interposer", "substrate", "PCB", "Power_Source"]
     box_list_min = [box for box in box_list if box.chiplet_parent.get_chiplet_type() not in excluded_types]
     z_min = max([box.end_z for box in box_list_min])
     z = z_min + min_TIM_height
-    
-    # x_min = min([box.start_x for box in box_list_min])
-    # x_max = max([box.end_x for box in box_list_min])
-    # y_min = min([box.start_y for box in box_list_min])
-    # y_max = max([box.end_y for box in box_list_min])
-        
-    # if(area_scale_factor != 0):
-    #     dimension_scale_factor = math.sqrt(area_scale_factor)
-    #     dx = dimension_scale_factor * (x_max - x_min)
-    #     dy = dimension_scale_factor * (y_max - y_min)
-    # elif(scale_factor_x == 0):
-    #     if(scale_factor_y == 0):
-    #         dy = heatsinks[0].get_base_length()
-    #     else:
-    #         dy = scale_factor_y * (y_max- y_min)
-    #     dx = heatsinks[0].get_base_width()
-    # elif(scale_factor_y == 0):
-    #     dy = heatsinks[0].get_base_length()
-    #     dx = scale_factor_x * (x_max - x_min)
-    # else:
-    #     dx = scale_factor_x * (x_max - x_min)
-    #     dy = scale_factor_y * (y_max- y_min)
 
-    # x = (x_max + x_min - dx) / 2
-    # y = (y_max + y_min - dy) / 2
+    if fin_number == 0 and fin_thickness > 0:
+        x_min = min(box.start_x for box in box_list_min)
+        x_max = max(box.end_x for box in box_list_min)
+        fin_number = int((x_max - x_min) / (2 * fin_thickness))
 
     GPU_HTC = hc
     HBM_HTC = hc
@@ -550,8 +470,7 @@ def create_multiple_heat_sinks(box_list, heatsink_list, heatsink_name, power_dic
     for box in box_list_top:
         chiplet_type = box.chiplet_parent.get_chiplet_type()[0:3]
         hc = chiplet_HTC.get(chiplet_type, None)
-        if(hc is not None):
-            # print(f"HTC is {hc} for chiplet type {chiplet_type}")
+        if hc is not None:
             x = box.start_x
             y = box.start_y
             dx = box.width
@@ -576,15 +495,27 @@ def create_multiple_heat_sinks(box_list, heatsink_list, heatsink_name, power_dic
             heatsink_data_list.append(heatsink_data)
     
     return heatsink_data_list, power_dict
-# dedeepyo : 21-Jun-25
 
-def create_heat_sink(box_list, heatsink_list, heatsink_name, min_TIM_height = 0.01, scale_factor_x = 0, scale_factor_y = 0, area_scale_factor = 0):
-    # dedeepyo : 7-Feb-2025 : Heatsink object creation.
+
+def create_heat_sink(
+    box_list,
+    heatsink_list,
+    heatsink_name,
+    min_TIM_height=0.01,
+    scale_factor_x=0,
+    scale_factor_y=0,
+    area_scale_factor=0,
+):
+    """
+    Create a single heatsink covering the top of the chiplet stack.
+
+    Sizes heatsink from box extents with optional scale factors. Returns
+    heatsink data dict with geometry, fin parameters, and HTC.
+    """
     heatsinks = [h for h in heatsink_list if h.get_name() == heatsink_name]
-    if(heatsinks is None):
+    if heatsinks is None:
         raise Exception("Heatsink not found")
-    
-    # excluded_types = ["interposer", "substrate", "PCB", "Power_Source"]
+
     excluded_types = []
     box_list_min = [box for box in box_list if box.chiplet_parent.get_chiplet_type() not in excluded_types]
     x_min = min([box.start_x for box in box_list_min])
@@ -612,15 +543,8 @@ def create_heat_sink(box_list, heatsink_list, heatsink_name, min_TIM_height = 0.
     x = (x_max + x_min - dx) / 2
     y = (y_max + y_min - dy) / 2
     z_min = max([box.end_z for box in box_list_min])
-    # print(str([box.end_z for box in box_list_min]))
-    # print(str([box.name for box in box_list_min if box.end_z == z_min]))
-    # print("z_min is : " + str(z_min))
     z = z_min + min_TIM_height
-    # print("z is : " + str(z))
-    # x = 0
-    # dedeepyo : 31-Oct-2024 : Implementing checker for all top chiplets touching heat_sink
 
-    # dedeepyo : 7-Feb-2025 : Heatsink object creation.
     fin_height = heatsinks[0].get_fin_height()
     fin_thickness = heatsinks[0].get_fin_thickness()
     material = heatsinks[0].get_material()
@@ -635,10 +559,9 @@ def create_heat_sink(box_list, heatsink_list, heatsink_name, min_TIM_height = 0.
             fin_number = int(dx / (2 * fin_thickness))
 
     heatsink_data = {
-        "name": f"HS_top",
-        "index": 0, # 10000000, # 
-        # "material": self.return_material_table_id(material),  # Cu-Foil
-        "material": material,  # Cu-Foil
+        "name": "HS_top",
+        "index": 0,
+        "material": material,
         "x": str(round(x, 6)),
         "y": str(round(y, 6)),
         "base_dx": str(round(dx, 6)),
@@ -653,10 +576,14 @@ def create_heat_sink(box_list, heatsink_list, heatsink_name, min_TIM_height = 0.
         "bound": bind_to_ambient
     }
     return heatsink_data
-# dedeepyo : 09-Apr-2025 #
 
-# dedeepyo : 03-Dec-2025 : Implementing DFS.
+
 def find_deepest_node(chiplet_tree):
+    """
+    Find the chiplet at maximum depth in the chiplet tree (DFS).
+
+    Used for 3D_1GPU_top config to place GPU on top of the deepest HBM stack.
+    """
     if not chiplet_tree or len(chiplet_tree) == 0:
         return None
     
@@ -675,18 +602,15 @@ def find_deepest_node(chiplet_tree):
     
     traverse(root, 0)
     return deepest_node
-# dedeepyo : 03-Dec-2025
+
 
 @click.command("standalone")
-@click.option('--therm_conf', help='The thermal config file')
-# @click.option('--deep_conf', help='The deepflow config file')
-@click.option('--out_dir', help='The output directory')
-# @click.option('--simtype', default="Anemoi", help='The simulator type')
-@click.option('--heatsink_conf', help='The heatsink config file')
-@click.option('--bonding_conf', help='The bonding config file')
-@click.option('--heatsink', help='The heatsink name')
-# @click.option('--bonding', help='The bonding name')
-@click.option('--project_name', help='The project name')
+@click.option("--therm_conf", help="The thermal config file")
+@click.option("--out_dir", help="The output directory")
+@click.option("--heatsink_conf", help="The heatsink config file")
+@click.option("--bonding_conf", help="The bonding config file")
+@click.option("--heatsink", help="The heatsink name")
+@click.option("--project_name", help="The project name")
 @click.option('--is_repeat', default = False, help='Is this a repeat run?')
 @click.option('--hbm_stack_height', default = 1, help='Number of dies per HBM stack')
 @click.option('--system_type', default = "2p5D", help='The system type')
@@ -695,13 +619,15 @@ def find_deepest_node(chiplet_tree):
 @click.option('--infill_cond_list', default = [1.6], multiple = True, help='The infill conductivity list')
 @click.option('--underfill_cond_list', default = [1.6], multiple = True, help='The underfill conductivity list')
 def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_name, simtype = "Anemoi", is_repeat = False, hbm_stack_height = 1, system_type = "2p5D", dummy_si = False, tim_cond_list = (5, 10, 50), infill_cond_list = (1.6, 19), underfill_cond_list = (1.6, 19)):
+    """
+    Main entry point: parse configs, build box stackup, run thermal simulation.
 
+    Performs chiplet sizing, placement, bonding/TIM/heatsink creation, then
+    calls simulator_simulate() and writes results to YAML. Supports 3D and
+    2.5D configurations.
+    """
     chiplet_tree = parse_all_chiplets(therm_conf)
     (w_top, l_top) = recursive_chiplet_sizing(chiplet_tree[0], None)
-
-    # first chip at 0,0
-    next_level_assignements = []
-    # traverse chiplet tree. Handle each level separately.D
 
     def generate_placements_from_floorplan(floorplan, floorplan_dict, chiplet_tree):
         # if floorplan or floorplan_dict = "", then check if the chiplet_tree has only 1 element.
@@ -1001,7 +927,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
                 if i > N:
                     break
                 if i % 10 == 0:
-                    # TODO: Fix this low priority
+                    # TODO: Low priority - early exit check for placement convergence
                     same = True
                     for j in range(len(box_destination_pairs)):
                         new_box = box_destination_pairs[j]
@@ -1332,7 +1258,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
                     break
                 # THIS EARLY EXIT STUFF DOES NOT WORK
                 if i % 10 == 0:
-                    # TODO: Fix this low priority
+                    # TODO: Low priority - early exit check for placement convergence
                     same = True
                     for j in range(len(box_destination_pairs)):
                         new_box = box_destination_pairs[j]
@@ -1406,8 +1332,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
                     # f.write("overlap_count_new of " + str(box.name) + " after y-movement and before x-movement is " + str(overlaps_new) + "\n")
                     
-            # dedeepyo : 10-Oct-25 : Implementing dummy Si. #TODO: Comment for 2.5D or anything other than 3D. Uncommen`t for 3D.`
-            if(system_type == "3D_1GPU" or system_type == "3D_waferscale" or system_type == "3D_1GPU_top"):
+            # TODO: PROJECT - Dummy Si placement for 3D configs; creates 4 Dummy_Si_above boxes.
+            if system_type == "3D_1GPU" or system_type == "3D_waferscale" or system_type == "3D_1GPU_top":
                 dummy_Si_height = 0.63 # in mm # 0.62 for 8-high, 0.63 for 16-high.
                 min_x = min([c.start_x for c in children_boxes]) - min_dist
                 max_x = max([c.end_x for c in children_boxes]) + min_dist
@@ -1444,7 +1370,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
                                 boxes.append(box)
                                 box.assign_chiplet_parent(chiplet)
                                 chiplet.set_box_representation(box)
-                            #TODO: Other cases not handled. 
+                            # TODO: PROJECT - Other Dummy_Si placement cases not handled. 
             # dedeepyo : 10-Oct-25 #
 
             # f.close()
@@ -1527,11 +1453,30 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
     # return #TODO: Comment out later.
 
+    # TODO: PROJECT - Layer definitions path; contains material conductivities for thermal solver.
     layers = parse_Layer_netlist("configs/layer_definitions.xml")
     heatsink_list = heatsink_definition_list_from_file(heatsink_conf)
     bonding_list = bonding_definition_list_from_file(bonding_conf)
     heatsink_name = heatsink
-    bonding_name_type_dict = {"GPU#HBM_l4": "bonding_Cu_pillar", "HBM_l4#GPU": "bonding_Cu_pillar", "GPU#HBM_l12": "bonding_Cu_pillar", "HBM_l12#GPU": "bonding_Cu_pillar", "GPU#HBM_l16": "bonding_Cu_pillar", "HBM_l16#GPU": "bonding_Cu_pillar", "GPU#HBM_l8": "bonding_Cu_pillar", "HBM_l8#GPU": "bonding_Cu_pillar", "GPU#HBM": "bonding_Cu_pillar", "HBM#GPU": "bonding_Cu_pillar", "GPU#interposer": "bonding_Cu_pillar", "interposer#GPU": "bonding_Cu_pillar", "interposer#HBM": "bonding_Cu_pillar", "HBM#interposer": "bonding_Cu_pillar", "interposer#PCB": "bonding_bga_ball", "PCB#interposer": "bonding_bga_ball", "interposer#substrate": "bonding_bga_ball", "substrate#interposer": "bonding_bga_ball", "substrate#Power_Source": "bonding_bga_ball", "Power_Source#substrate": "bonding_bga_ball", "interposer#Power_Source": "bonding_bga_ball", "Power_Source#interposer": "bonding_bga_ball", "GPU#substrate": "bonding_Cu_pillar", "substrate#GPU": "bonding_Cu_pillar", "substrate#HBM": "bonding_Cu_pillar", "HBM#substrate": "bonding_Cu_pillar", "GPU#PCB": "bonding_Cu_pillar", "PCB#GPU": "bonding_Cu_pillar", "PCB#HBM": "bonding_Cu_pillar", "HBM#PCB": "bonding_Cu_pillar", "PCB#Power_Source": "bonding_bga_ball", "Power_Source#PCB": "bonding_bga_ball"}
+    # TODO: PROJECT - Bonding type mapping for chiplet pairs; used in create_all_bonding.
+    bonding_name_type_dict = {
+        "GPU#HBM_l4": "bonding_Cu_pillar", "HBM_l4#GPU": "bonding_Cu_pillar",
+        "GPU#HBM_l12": "bonding_Cu_pillar", "HBM_l12#GPU": "bonding_Cu_pillar",
+        "GPU#HBM_l16": "bonding_Cu_pillar", "HBM_l16#GPU": "bonding_Cu_pillar",
+        "GPU#HBM_l8": "bonding_Cu_pillar", "HBM_l8#GPU": "bonding_Cu_pillar",
+        "GPU#HBM": "bonding_Cu_pillar", "HBM#GPU": "bonding_Cu_pillar",
+        "GPU#interposer": "bonding_Cu_pillar", "interposer#GPU": "bonding_Cu_pillar",
+        "interposer#HBM": "bonding_Cu_pillar", "HBM#interposer": "bonding_Cu_pillar",
+        "interposer#PCB": "bonding_bga_ball", "PCB#interposer": "bonding_bga_ball",
+        "interposer#substrate": "bonding_bga_ball", "substrate#interposer": "bonding_bga_ball",
+        "substrate#Power_Source": "bonding_bga_ball", "Power_Source#substrate": "bonding_bga_ball",
+        "interposer#Power_Source": "bonding_bga_ball", "Power_Source#interposer": "bonding_bga_ball",
+        "GPU#substrate": "bonding_Cu_pillar", "substrate#GPU": "bonding_Cu_pillar",
+        "substrate#HBM": "bonding_Cu_pillar", "HBM#substrate": "bonding_Cu_pillar",
+        "GPU#PCB": "bonding_Cu_pillar", "PCB#GPU": "bonding_Cu_pillar",
+        "PCB#HBM": "bonding_Cu_pillar", "HBM#PCB": "bonding_Cu_pillar",
+        "PCB#Power_Source": "bonding_bga_ball", "Power_Source#PCB": "bonding_bga_ball",
+    }
     # bonding_name = bonding_name_type_dict
     recursively_remove_fake_chiplets(chiplet_tree[0])
     # recursively_find_fakes(chiplet_tree[0])
@@ -1599,7 +1544,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         GPU_box = Box(0.0,0.0,z_coord,width,length,GPU_chiplet.get_height(),GPU_chiplet.get_power(),GPU_chiplet.get_stackup(),0,GPU_chiplet.get_name())
         GPU_box.assign_chiplet_parent(GPU_chiplet)
         GPU_chiplet.set_box_representation(GPU_box)
-        boxes.append(GPU_box) #TODO
+        boxes.append(GPU_box)  # TODO: PROJECT - GPU box added for 3D_1GPU_top config
 
         deepest_node.add_child_chiplet(GPU_chiplet)
     # dedeepyo : 01-Dec-25 #
@@ -1660,12 +1605,26 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     # anemoi_parameter_ID = {'interposer_power': 1949, 'substrate_power': 1950, 'PCB_power': 1951, 'GPU_power': 1946, 'Power_Source_power': 1952, 'HBM_power': 1947, 'GPU_HTC_power': 1953, 'HBM_l_power': 1948, 'HBM_HTC_power': 1954}
     # print("Power dict initialized: ", power_dict)
 
-    if(is_repeat == False):
+    if not is_repeat:
         simulation_start_time = time.time()
         print("Starting simulation at ", simulation_start_time)
-        
-        is_repeat = is_repeat # False # False # True if the simulation is repeated with different powers, False if only one simulation is run.
-        results = simulator_simulate(boxes, bonding_box_list, TIM_boxes, heatsink_obj = heatsink_obj, heatsink_list = heatsink_list, heatsink_name = heatsink_name, bonding_list = bonding_list, bonding_name_type_dict = bonding_name_type_dict, is_repeat = is_repeat,  min_TIM_height = min_TIM_height, power_dict = power_dict, anemoi_parameter_ID = anemoi_parameter_ID, layers = layers) #
+
+        # TODO: PROJECT - simulator_simulate() is called here; implement thermal solver above.
+        results = simulator_simulate(
+            boxes,
+            bonding_box_list,
+            TIM_boxes,
+            heatsink_obj=heatsink_obj,
+            heatsink_list=heatsink_list,
+            heatsink_name=heatsink_name,
+            bonding_list=bonding_list,
+            bonding_name_type_dict=bonding_name_type_dict,
+            is_repeat=is_repeat,
+            min_TIM_height=min_TIM_height,
+            power_dict=power_dict,
+            anemoi_parameter_ID=anemoi_parameter_ID,
+            layers=layers,
+        )
         
         simulation_end_time = time.time()
         print("Simulation finished at ", simulation_end_time)
@@ -1685,75 +1644,48 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
         return
 
-    # dedeepyo : 4-Jun-25
-
-        # for box in boxes:
-        #     # dedeepyo : 2-Jun-25 : Parameterizing box power.
-        #     # Assuming, all boxes of a particular chiplet_type have same power.
-        #     if box.power is None:
-        #         box.power = 0.0
-        #     box_power_in_mW = round(box.power * 1000, 6)
-        #     try:
-        #         power_num_in_mW = power_values[box.chiplet.get_chiplet_type()]
-        #         # if(power_num_in_mW != box_power_in_mW): # Assuming this asymmetry is never encountered.
-        #         #     self.papi.project_parameter_update(self.id, box.chiplet.get_chiplet_type() + "_power", box_power_in_mW)
-        #         power_parameter_in_mW = anemoi_parameters[box.chiplet.get_chiplet_type() + "_power"]
-        #     except KeyError:
-        #         power_num_in_mW = box_power_in_mW
-        #         power_parameter_in_mW = None
-        #         for key, value in power_values.items():
-        #             if value == power_num_in_mW:
-        #                 power_parameter_in_mW = anemoi_parameters[key + "_power"]
-        #                 power_values[box.chiplet.get_chiplet_type()] = power_num_in_mW
-        #                 anemoi_parameters[box.chiplet.get_chiplet_type() + "_power"] = power_parameter_in_mW
-        #         if power_parameter_in_mW is None:
-        #             power_parameter_in_mW = box.chiplet.get_chiplet_type() + "_power"
-        #             self.papi.project_parameter_create(self.id, power_parameter_in_mW, box.chiplet.get_chiplet_type() + "_power", power_num_in_mW)
-        #             anemoi_parameters[power_parameter_in_mW] = power_parameter_in_mW     
-        #             power_values[box.chiplet.get_chiplet_type()] = power_num_in_mW       
-        #     # dedeepyo : 2-Jun-25
-
-# def get_temperatures_from_results(file):
-#     f = open(file, 'r')
-#     lines = f.readlines()
-#     f.close()
-#     temperatures = {}
-
-# dedeepyo : 4-Jun-25 : Implementing helper functions for iterations.
 def get_GPU_count(boxes):
+    """Count the number of GPU chiplets in the box list."""
     GPU_count = 0
     for box in boxes:
         if box.chiplet_parent.get_chiplet_type() == "GPU":
             GPU_count += 1
     return GPU_count
 
-def GPU_throttling(GPU_power = 275, GPU_time_frac_idle = 0.2, GPU_idle_power = 47):
-  GPU_power_throttled = GPU_power * (1 - GPU_time_frac_idle) + GPU_idle_power * GPU_time_frac_idle
-  return GPU_power_throttled
+def GPU_throttling(GPU_power=275, GPU_time_frac_idle=0.2, GPU_idle_power=47):
+    """
+    Compute time-averaged GPU power accounting for idle fraction.
 
-# def HBM_throttled_performance(bandwidth, latency, HBM_peak_temperature = 74):
-#     if((HBM_peak_temperature > 85)):
-#         bandwidth *= 0.732
-#         latency *= 1.714
-#     elif((HBM_peak_temperature > 75) and (HBM_peak_temperature <= 85)):
-#         bandwidth *= 0.912
-#         latency *= 1.238
-    
-#     return bandwidth, latency
+    Returns weighted average of active and idle power.
+    """
+    GPU_power_throttled = (
+        GPU_power * (1 - GPU_time_frac_idle) + GPU_idle_power * GPU_time_frac_idle
+    )
+    return GPU_power_throttled
 
-def HBM_throttled_performance(bandwidth, latency, HBM_peak_temperature = 74):
-    if((HBM_peak_temperature > 74)):
-        bandwidth *= (2.82 - 0.018 * HBM_peak_temperature) # Linear interpolation between (75, 0.912) and (85, 0.732)
-    if((HBM_peak_temperature > 85)):
-        # bandwidth *= 0.732
+def HBM_throttled_performance(bandwidth, latency, HBM_peak_temperature=74):
+    """
+    Apply temperature-based throttling to HBM bandwidth and latency.
+
+    Above 74C, bandwidth scales down; above 75C/85C, latency increases.
+    """
+    if HBM_peak_temperature > 74:
+        bandwidth *= (2.82 - 0.018 * HBM_peak_temperature)
+    if HBM_peak_temperature > 85:
         latency *= 1.714
-    elif((HBM_peak_temperature > 75) and (HBM_peak_temperature <= 85)):
-        # bandwidth *= 0.912
+    elif 75 < HBM_peak_temperature <= 85:
         latency *= 1.238
     
     return bandwidth, latency
 
-def HBM_throttled_power(bandwidth_throttled, HBM_power, bandwidth_reference = 1986, HBM_peak_temperature = 74):
+def HBM_throttled_power(
+    bandwidth_throttled, HBM_power, bandwidth_reference=1986, HBM_peak_temperature=74
+):
+    """
+    Compute HBM power with temperature-dependent refresh and bandwidth scaling.
+
+    Refresh energy scales with temperature; non-refresh scales with bandwidth.
+    """
     refresh_energy = 0.12 * HBM_power
     non_refresh_energy = HBM_power - refresh_energy
     if(bandwidth_throttled < bandwidth_reference):
@@ -1764,7 +1696,12 @@ def HBM_throttled_power(bandwidth_throttled, HBM_power, bandwidth_reference = 19
         refresh_energy *= 2.0
     return refresh_energy + non_refresh_energy
     
-def update_power_source_backside(boxes, power_dict, efficiency = 0.9):
+def update_power_source_backside(boxes, power_dict, efficiency=0.9):
+    """
+    Update power source dissipation based on power_dict and chiplet types.
+
+    Sums power from all non-Power_Source boxes and sets Power_Source loss.
+    """
     total_power = 0
     for box in boxes:
         if(box.chiplet_parent.get_chiplet_type() != "Power_Source"):
@@ -1785,6 +1722,11 @@ def update_power_source_backside(boxes, power_dict, efficiency = 0.9):
     return ps.power
 
 def initialize_power_dict_values(boxes):
+    """
+    Build power_dict mapping chiplet types (GPU, HBM, HBM_l, Power_Source) to power values.
+
+    Used when power_dict is needed for simulation or calibration.
+    """
     power_dict = {}
     for box in boxes: # Assuming all boxes of a particular type have same power.
         if(box.chiplet_parent.get_chiplet_type() == "GPU"):
@@ -1797,9 +1739,8 @@ def initialize_power_dict_values(boxes):
             power_dict["Power_Source"] = box.power
     return power_dict
 
-# dedeepyo : 4-Jun-25
-
 def read_data(filename):
+    """Read a file of space-separated 4-column numeric data into a numpy array."""
     data = []
     with open(filename, 'r') as f:
         for line in f:
@@ -1809,7 +1750,23 @@ def read_data(filename):
                     data.append([float(x) for x in parts])
     return np.array(data)
 
-def interpolate_and_report(data, col2_values, file_handle, system_name, HTC, TIM_conductivity, infill_conductivity, underfill_conductivity, HBM_stack_height, dummy_Si):
+def interpolate_and_report(
+    data,
+    col2_values,
+    file_handle,
+    system_name,
+    HTC,
+    TIM_conductivity,
+    infill_conductivity,
+    underfill_conductivity,
+    HBM_stack_height,
+    dummy_Si,
+):
+    """
+    Fit linear regression for GPU/HBM peak temps vs. col2, write slopes/intercepts to CSV.
+
+    Used for calibration data generation.
+    """
     slope_intercept_dict = {}
     for val in col2_values:
         slope_intercept_dict[val] = {'peak_GPU_temp': (0.0, 0.0), 'peak_HBM_temp': (0.0, 0.0)}
@@ -1825,19 +1782,10 @@ def interpolate_and_report(data, col2_values, file_handle, system_name, HTC, TIM
             y_pred = model.predict(x)
             r2 = r2_score(y, y_pred)
             slope_intercept_dict[val][col_name] = (f"{model.coef_[0]:.3f}", f"{model.intercept_:.2f}")
-            # file_handle.write(f"Interpolation for col={val}, {col_name}:")
-            # file_handle.write(f"  Slope: {model.coef_[0]:.6f}, Intercept: {model.intercept_:.6f}, R^2: {r2:.6f}\n")
-
-    # "system_name,HBM_power(W),HTC(W/(m2K)),TIM_conductivity(W/(mK)),infill_conductivity(W/(mK)),underfill_conductivity(W/(mK)),HBM_stack_height,dummy_Si"
 
     for key1 in slope_intercept_dict:
         file_handle.write(f"{system_name},{key1},{HTC},{TIM_conductivity},{infill_conductivity},{underfill_conductivity},{HBM_stack_height},{dummy_Si},{slope_intercept_dict[key1]['peak_GPU_temp'][0]},{slope_intercept_dict[key1]['peak_GPU_temp'][1]},{slope_intercept_dict[key1]['peak_HBM_temp'][0]},{slope_intercept_dict[key1]['peak_HBM_temp'][1]}\n")
-    #     # print(f"{slope_intercept_dict[key1]['peak_GPU_temp'][0]}, {slope_intercept_dict[key1]['peak_HBM_temp'][0]}")
-    #     # print(f"{slope_intercept_dict[key1]['peak_GPU_temp'][1]}, {slope_intercept_dict[key1]['peak_HBM_temp'][1]}")
-    #     # print("calibrate_GPU")
-    #     file_handle.write(f"calibrate_GPU :: {key1} : ({slope_intercept_dict[key1]['peak_GPU_temp'][0]}, {slope_intercept_dict[key1]['peak_GPU_temp'][1]})\n")
-    #     # print("calibrate_HBM")
-    #     file_handle.write(f"calibrate_HBM :: {key1} : ({slope_intercept_dict[key1]['peak_HBM_temp'][0]}, {slope_intercept_dict[key1]['peak_HBM_temp'][1]})\n")
+
 
 def write_calibration_to_csv(
     system_name,
@@ -1919,8 +1867,14 @@ def write_calibration_to_csv(
         # Write the data row
         writer.writerow(row_data)
 
-def parse_calibration_block(block: str) -> Tuple[str, List[Tuple[str, str]], List[Tuple[str, str]]]:
-    """Extract condition line and calibration tuples for GPU and HBM from a text block."""
+def parse_calibration_block(
+    block: str,
+) -> Tuple[str, List[Tuple[str, str]], List[Tuple[str, str]]]:
+    """
+    Extract condition line and calibration tuples for GPU and HBM from a text block.
+
+    Parses calibrate_GPU and calibrate_HBM entries with setpoint and (slope, intercept).
+    """
     lines = [line.strip() for line in block.splitlines() if line.strip()]
     if not lines:
         raise ValueError("Empty calibration block encountered")
@@ -1950,12 +1904,17 @@ def parse_calibration_block(block: str) -> Tuple[str, List[Tuple[str, str]], Lis
 
     return condition_line, gpu_entries, hbm_entries
 
-def format_condition_block(condition: str, entries: List[Tuple[str, str]]) -> List[str]:
-    """Render a condition block without a calibrate header."""
+def format_condition_block(
+    condition: str, entries: List[Tuple[str, str]]
+) -> List[str]:
+    """
+    Render a calibration condition block as Python dict assignment lines.
+
+    Produces temperature_dict entries for GPU or HBM calibration.
+    """
     if not entries:
         return []
 
-    # output = [condition, '    temperature_dict["2p5D_1GPU"] = {']
     output = [condition, '    temperature_dict["3D_1GPU"] = {']
     for index, (setpoint, values) in enumerate(entries):
         trailing = "," if index < len(entries) - 1 else ""
@@ -1964,7 +1923,12 @@ def format_condition_block(condition: str, entries: List[Tuple[str, str]]) -> Li
     output.append("")
     return output
 
-def convert(source: Path, destination: Path, hbm_stack_height = 1) -> None:
+def convert(source: Path, destination: Path, hbm_stack_height=1) -> None:
+    """
+    Convert calibration text blocks from source file to Python format in destination.
+
+    Parses calibrate_GPU and calibrate_HBM blocks and writes formatted output.
+    """
     raw_text = source.read_text()
     blocks = [block.strip() for block in raw_text.split("\n\n") if block.strip()]
 
@@ -2000,22 +1964,5 @@ def convert(source: Path, destination: Path, hbm_stack_height = 1) -> None:
 
     destination.write_text("\n".join(output_lines) + "\n")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     therm()
-
-# 
-# new_bandwidth = input("Enter the new bandwidth value (GB): ")
-
-
-
-# # Update line 33 and line 40 (0-based index: 32 and 39)
-# for idx in [32, 39]:
-#     if "bandwidth:" in lines[idx]:
-#         # Replace the value after 'bandwidth:'
-#         parts = lines[idx].split("bandwidth:")
-#         lines[idx] = f"{parts[0]}bandwidth: {new_bandwidth} GB\n"
-
-# with open(file_path, "w") as f:
-#     f.writelines(lines)
-
-# print("Bandwidth values updated successfully.")

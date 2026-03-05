@@ -22,11 +22,7 @@ the box stackup into a resistive grid and solves for temperatures.
 ├── bonding_xml_parser.py       # Bonding definitions parser
 ├── heatsink_xml_parser.py      # Heatsink definitions parser
 ├── rearrange.py                # Placement / rearrangement logic
-├── thermal_simulators/         # Anemoi cloud-API simulator (legacy)
-│   ├── anemoi_sim.py
-│   ├── base.py
-│   ├── factory.py
-│   └── neural_sim.py
+├── docs/anemoi-reference.md    # Reference data extracted from legacy Anemoi simulator
 ├── configs/thermal-configs/    # Local XML config files
 │   ├── sip_hbm_dray_*.xml      # System descriptions (3D, 2.5D variants)
 │   ├── heatsink_definitions.xml
@@ -67,14 +63,13 @@ the box stackup into a resistive grid and solves for temperatures.
 
 ## Changes Made to Starter Code
 
-1. **Removed** unused `from thermal_simulators.factory import SimulatorFactory`
-   import — the underlying `anemoi_sim.py` had a broken placeholder
-   (`<paste API key here!>`) causing a `SyntaxError`.
-2. **Fixed** the placeholder in `anemoi_sim.py` to be a valid empty string.
-3. **Added** `simulator_simulate()` stub function that returns zero-valued
+1. **Removed** the entire `thermal_simulators/` directory (legacy Anemoi
+   cloud-API code). Useful reference data (conductivity values, voxelization
+   logic, solver parameters) was extracted to `docs/anemoi-reference.md`.
+2. **Added** `simulator_simulate()` stub function that returns zero-valued
    results for every box, allowing the pipeline to run end-to-end without
    a solver implementation.
-4. **Replaced** the bare `return #TODO: Comment out later` after
+3. **Replaced** the bare `return #TODO: Comment out later` after
    `simulator_simulate()` with result-printing and YAML-writing logic.
    The original code exited the `therm()` function immediately after the
    simulation, so no output file was ever written. Now each run produces
