@@ -107,53 +107,6 @@ python3 therm.py \
 
 ---
 
-## Project File Structure
-
-```
-final_project/
-├── therm.py                    # Main entry point - contains simulator_simulate() stub
-├── therm_xml_parser.py         # Parses system XML configs into Chiplet/Box/Layer objects
-├── rearrange.py                # Box class definition and overlap/placement utilities
-├── bonding_xml_parser.py       # Parses bonding definitions XML
-├── heatsink_xml_parser.py      # Parses heatsink definitions XML
-├── configs/                    # All XML configuration files
-│   ├── assembly_process_definitions.xml   # Assembly process parameters
-│   ├── bonding_definitions.xml            # Bonding material/geometry definitions
-│   ├── heatsink_definitions.xml           # Heatsink specifications
-│   ├── layer_definitions.xml              # Layer material/thickness definitions
-│   ├── netlist.xml                        # Chiplet connection netlist
-│   ├── wafer_process_definitions.xml      # Wafer process parameters
-│   └── sip_hbm_*.xml                     # System description configs (various topologies)
-├── output/
-│   ├── output_vars.yaml        # Variable definitions (alternate chiplet parameters)
-│   ├── output_vars1.yaml       # Variable definitions (alternate chiplet parameters)
-│   └── output_vars2.yaml       # Variable definitions (GPU area, power, HBM count, etc.) -- active
-├── thermal_simulators/         # Simulator framework (Anemoi API client - reference only)
-│   ├── base.py                 # Abstract base class for simulators
-│   ├── factory.py              # Simulator factory
-│   ├── anemoi_sim.py           # Anemoi cloud simulator (not used locally)
-│   └── neural_sim.py           # Neural model simulator (not used locally)
-├── lab_files/                  # Project specification and reference papers
-│   ├── Final Project.pdf       # Project spec document
-│   ├── Embedded Thermal Systems.pdf
-│   └── HotSpot Paper *.pdf     # HotSpot reference papers (3 papers)
-├── scripts/                    # Shell scripts for running test configurations
-│   ├── run_config1_3D_gpu_top.sh
-│   ├── run_config2_3D_gpu_bottom.sh
-│   ├── run_config3_2p5D.sh
-│   └── run_all.sh
-├── setup/                      # Environment setup
-│   ├── setup.sh                # Creates .venv and installs all dependencies
-│   └── requirements.txt        # Python package requirements
-├── docs/
-│   └── RUNNING_GUIDE.md        # This file
-├── out_therm/                  # Output directory for plots (generated at runtime)
-├── .gitignore
-└── README.md
-```
-
----
-
 ## How the Code Works (Execution Flow)
 
 1. **Parse system config** (`therm_xml_parser.py`): Reads the XML chiplet hierarchy, assembly processes, layer definitions, and connection netlist. Builds a tree of `Chiplet` objects.
