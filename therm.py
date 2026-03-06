@@ -34,22 +34,6 @@ sns.set()
 MOVE_MULTIPLIER = 1  # How many times min_dist to move per step
 INFLATION = 1       # Inflation factor for overlap checking
 
-# =============================================================================
-# TODO: PROJECT IMPLEMENTATION - Thermal Resistance Network Solver
-# =============================================================================
-# This is the main function you must implement for the EE201A Final Project.
-# Replace the stub below with your thermal resistance network solver.
-#
-# Implementation steps (from docs/expected-outputs.md):
-#   1. Divide the 3-D box stackup into a grid of small uniform (or non-uniform) cells.
-#   2. Compute thermal resistance (R_x, R_y, R_z) of each cell using material
-#      conductivities from `layers` and cell geometry.
-#   3. Feed the resistance network into PiSPICE or a custom RC solver.
-#   4. Extract peak and average temperatures per box from the solver output.
-#   5. Return the results dictionary in the format shown below.
-#
-# Power assumptions (from project PDF): GPU = 400 W, each HBM = 5 W
-# =============================================================================
 def simulator_simulate(
     boxes,
     bonding_box_list,
@@ -64,314 +48,34 @@ def simulator_simulate(
     power_dict=None,
     anemoi_parameter_ID=None,
     layers=None,
+    tim_cond=None,
+    infill_cond=None,
+    underfill_cond=None,
 ):
     """
     Solve the thermal resistance network and return per-box temperature results.
 
-    This is the core simulation function for the EE201A Final Project. It takes
-    the 3-D box stackup (chiplets, bonding layers, TIM, heatsink) and computes
-    steady-state temperatures using a thermal resistance network model.
-
-    Args:
-        boxes: List of Box objects representing chiplets and thermal elements.
-        bonding_box_list: List of bonding layer boxes between chiplets.
-        TIM_boxes: List of Thermal Interface Material boxes to heatsink.
-        heatsink_obj: Heatsink definition object (optional).
-        heatsink_list: List of heatsink objects (optional).
-        heatsink_name: Name of heatsink configuration (optional).
-        bonding_list: Bonding definitions from XML (optional).
-        bonding_name_type_dict: Mapping of bonding types (optional).
-        is_repeat: If True, skip simulation for calibration iterations.
-        min_TIM_height: Minimum TIM layer height in mm.
-        power_dict: Per-chiplet-type power values (optional).
-        anemoi_parameter_ID: Legacy parameter (optional).
-        layers: Layer definitions with material conductivities (optional).
+    Delegates to thermal_solver.solve_thermal() which builds a 3D
+    non-uniform grid, assigns material conductivities and power sources,
+    and solves the sparse thermal conductance matrix for steady-state
+    temperatures.
 
     Returns:
         Dictionary mapping box names to tuples of:
             (peak_temperature_C, average_temperature_C, R_x_K_per_W, R_y_K_per_W, R_z_K_per_W)
     """
-    # ------------------------------------------------------------------
-    # Lightweight thermal resistance network (finite-volume inspired)
-    #
-    # Goal: produce physically plausible peak/average temps per box without
-    # relying on external solvers. We approximate each box as a lumped heat
-    # source with vertical paths to the heatsink (top) and substrate/PCB
-    # (bottom). Thermal resistances are derived from stackup definitions and
-    # material conductivities supplied in `layers`.
-    # ------------------------------------------------------------------
+    from thermal_solver import solve_thermal
 
-    ambient_temp_C = 45.0  # Reference ambient used in project handout
-    eps = 1e-12            # Numerical guard to avoid divide‑by‑zero
-
-    # Conductivity look‑up table (W/(m·K)) gathered from docs/anemoi-reference.md
-    conductivity_values = {
-        "Air": 0.025,
-        "FR-4": 0.1,
-        "Cu-Foil": 400,
-        "Si": 105,
-        "Aluminium": 205,
-        "TIM001": 100,
-        "Glass": 1.36,
-        "TIM": 100,
-        "TIM0p5": 1.0,
-        "SnPb 67/37": 36,
-        "Epoxy, Silver filled": 1.6,
-        "EpAg": 1.6,
-        "Infill_material": 19,
-        "Polymer1": 675,
-        "SiO2": 1.1,
-        # Reasonable fallbacks for occasional names
-        "Epoxy": 0.3,
-        "EpAg_filled": 1.6,
-    }
-
-    # --- Helpers -----------------------------------------------------
-
-    def material_conductivity(material: str) -> float:
-        """Return effective conductivity for a (possibly composite) material string."""
-        if material in conductivity_values:
-            return conductivity_values[material]
-
-        # Composite form like "Cu-Foil:0.7,Si:0.3" or with percentages
-        if "," in material and ":" in material:
-            total_ratio = 0.0
-            k_sum = 0.0
-            for part in material.split(','):
-                part = part.strip()
-                if ":" not in part:
-                    continue
-                mat_name, frac_str = part.split(":", 1)
-                try:
-                    frac = float(frac_str)
-                except ValueError:
-                    frac = 0.0
-                if frac > 1.0:
-                    frac /= 100.0  # treat values >1 as percentages
-                k_sum += conductivity_values.get(mat_name.strip(), conductivity_values.get("Si", 1.0)) * frac
-                total_ratio += frac
-            if total_ratio > 0:
-                return k_sum / total_ratio
-
-        # Default fallback
-        return conductivity_values.get("Si", 1.0)
-
-    def build_layer_map(layer_defs):
-        layer_map = {}
-        if layer_defs is None:
-            return layer_map
-        for layer in layer_defs:
-            cond = material_conductivity(layer.get_material())
-            layer_map[layer.get_name()] = (layer.get_thickness(), layer.get_material(), cond)
-        return layer_map
-
-    layer_map = build_layer_map(layers)
-
-    def parse_stackup_layers(box) -> List[Tuple[float, float]]:
-        """
-        Convert a box stackup string into [(thickness_m, conductivity), ...].
-
-        Handles three cases:
-          1) Standard stackup: "n:layer_name, m:layer_name,..." using layer_defs
-          2) Bonding-style stackup: "1:Cu-Foil:70,Epoxy, Silver filled:30"
-          3) Unknown stackup: fall back to box height with silicon conductivity
-        """
-        stackup = getattr(box, "stackup", None)
-        if not stackup:
-            return [(max(box.height, eps) / 1000.0, material_conductivity("Si"))]
-
-        # Bonding composite (two materials with explicit ratios, first comma splits them)
-        first_token = stackup.split(",", 1)[0]
-        if first_token.count(":") >= 2:
-            try:
-                lhs, rhs = stackup.split(",", 1)
-            except ValueError:
-                lhs, rhs = stackup, ""
-            parts = lhs.split(":")
-            layer_mult = float(parts[0]) if parts[0] else 1.0
-            mat1 = parts[1].strip()
-            ratio1 = float(parts[2]) if len(parts) > 2 else 50.0
-            mat2, ratio2 = rhs.rsplit(":", 1) if ":" in rhs else (rhs, "50")
-            mat2 = mat2.strip()
-            try:
-                ratio2 = float(ratio2)
-            except ValueError:
-                ratio2 = 100.0 - ratio1
-            if ratio1 > 1.0:
-                ratio1 /= 100.0
-            if ratio2 > 1.0:
-                ratio2 /= 100.0
-            if ratio1 + ratio2 == 0:
-                ratio1 = ratio2 = 0.5
-            k_eff = ratio1 * material_conductivity(mat1) + ratio2 * material_conductivity(mat2)
-            thickness_m = max(box.height * layer_mult, eps) / 1000.0
-            return [(thickness_m, k_eff)]
-
-        entries = [e for e in stackup.split(",") if e]
-        known_layers: List[Tuple[float, float]] = []
-        unknown_layers: List[Tuple[float, float]] = []  # (multiplier, conductivity)
-
-        for entry in entries:
-            parts = entry.split(":")
-            if len(parts) < 2:
-                continue
-            try:
-                count = float(parts[0]) if parts[0] else 1.0
-            except ValueError:
-                count = 1.0
-            layer_name = parts[1]
-            if layer_name in layer_map:
-                thickness_mm, _, cond = layer_map[layer_name]
-                known_layers.append((max(thickness_mm * count, eps) / 1000.0, cond))
-            else:
-                cond = material_conductivity(layer_name)
-                unknown_layers.append((count, cond))
-
-        total_known_m = sum(t for t, _ in known_layers)
-        remaining_mm = max(box.height - total_known_m * 1000.0, 0.0)
-
-        if unknown_layers:
-            total_units = sum(u for u, _ in unknown_layers) or len(unknown_layers)
-            for units, cond in unknown_layers:
-                share_mm = remaining_mm * (units / total_units) if remaining_mm > 0 else 0.0
-                thickness_m = max(share_mm, eps) / 1000.0
-                # If no remaining height, distribute evenly
-                if remaining_mm == 0:
-                    thickness_m = max(box.height / 1000.0 / len(unknown_layers), eps)
-                known_layers.append((thickness_m, cond))
-
-        if not known_layers:
-            known_layers.append((max(box.height, eps) / 1000.0, material_conductivity("Si")))
-
-        return known_layers
-
-    def compute_resistances(box):
-        layer_list = parse_stackup_layers(box)
-        total_thickness_m = sum(t for t, _ in layer_list)
-        width_m = max(box.width, eps) / 1000.0
-        length_m = max(box.length, eps) / 1000.0
-        area_xy = max(width_m * length_m, eps)
-
-        # Through-plane (z) resistance: series combination of layers
-        r_series = sum(t / (k + eps) for t, k in layer_list)  # units: m^2*K/W
-        R_z = r_series / (area_xy + eps)
-
-        # In-plane effective conductivity (rule of mixtures)
-        k_parallel = sum(t * k for t, k in layer_list) / (total_thickness_m + eps)
-
-        # Lateral resistances (approximate rectangular conduction path)
-        R_x = width_m / (k_parallel * total_thickness_m * length_m + eps)
-        R_y = length_m / (k_parallel * total_thickness_m * width_m + eps)
-
-        return R_z, R_x, R_y, k_parallel, total_thickness_m, area_xy
-
-    def overlap_area_mm2(a_start_x, a_end_x, a_start_y, a_end_y, b_start_x, b_end_x, b_start_y, b_end_y):
-        dx = max(0.0, min(a_end_x, b_end_x) - max(a_start_x, b_start_x))
-        dy = max(0.0, min(a_end_y, b_end_y) - max(a_start_y, b_start_y))
-        return dx * dy
-
-    def nearest_tim_conductivity(target_box):
-        """Find effective conductivity of the TIM directly above the target (if any)."""
-        if not TIM_boxes:
-            return conductivity_values.get("TIM0p5", 1.0)
-        best_k = conductivity_values.get("TIM0p5", 1.0)
-        for tim in TIM_boxes:
-            # XY overlap check
-            if overlap_area_mm2(target_box.start_x, target_box.end_x, target_box.start_y, target_box.end_y,
-                                tim.start_x, tim.end_x, tim.start_y, tim.end_y) <= 0:
-                continue
-            _, _, _, k_par, _, _ = compute_resistances(tim)
-            best_k = max(best_k, k_par)
-        return best_k
-
-    # Pre-compute heatsink geometry (if provided)
-    hs = heatsink_obj or {}
-    hs_x = float(hs.get("x", 0.0))
-    hs_y = float(hs.get("y", 0.0))
-    hs_dx = float(hs.get("base_dx", hs.get("dx", 0.0)))
-    hs_dy = float(hs.get("base_dy", hs.get("dy", 0.0)))
-    hs_z_base = float(hs.get("z", 0.0))
-    hs_base_thickness_m = float(hs.get("base_dz", hs.get("dz", 0.0))) / 1000.0
-    hs_hc = float(hs.get("hc", 100.0))
-    hs_material = hs.get("material", "Aluminium")
-    hs_area_m2 = max(hs_dx * hs_dy, eps) / 1e6
-    hs_rect = (hs_x, hs_x + hs_dx, hs_y, hs_y + hs_dy)
-    hs_k = material_conductivity(hs_material)
-
-    # Power helper
-    def resolve_power(box):
-        box_type = box.chiplet_parent.get_chiplet_type() if box.chiplet_parent else ""
-        p = box.power if box.power is not None else 0.0
-        # If explicit power_dict is provided, prefer it
-        if power_dict and box_type in power_dict:
-            p = power_dict[box_type]
-        # Apply project defaults if power not set or unreasonably low
-        if p is None or p <= 0:
-            if box_type == "GPU":
-                p = 400.0
-            elif box_type.startswith("HBM"):
-                p = 5.0
-            else:
-                p = 0.0
-        # Ensure GPU power is at least project assumption
-        if box_type == "GPU" and p < 390:
-            p = 400.0
-        return float(p)
-
-    results = {}
-
-    for box in boxes:
-        R_z, R_x, R_y, k_par, thickness_m, area_xy = compute_resistances(box)
-
-        # Self-resistance from heat source (assumed mid-plane) to top/bottom faces
-        R_self_half = R_z / 2.0 if R_z > 0 else 0.0
-
-        # --- Top path to heatsink / ambient ---
-        # Distance from top of box to bottom of heatsink base (includes TIM gap)
-        distance_to_hs_m = max(hs_z_base - box.end_z, 0.0) / 1000.0
-        hs_overlap_area_m2 = max(
-            overlap_area_mm2(box.start_x, box.end_x, box.start_y, box.end_y, *hs_rect) / 1e6,
-            area_xy
-        )
-        k_gap = nearest_tim_conductivity(box)
-        R_gap = distance_to_hs_m / (k_gap * hs_overlap_area_m2 + eps) if distance_to_hs_m > 0 else 0.0
-        R_hs_base = hs_base_thickness_m / (hs_k * hs_area_m2 + eps) if hs_base_thickness_m > 0 else 0.0
-        R_conv = 1.0 / (hs_hc * hs_area_m2 + eps) if hs_hc > 0 else 1.0
-        R_top = R_self_half + R_gap + R_hs_base + R_conv
-
-        # --- Bottom path to board/ambient ---
-        distance_to_bottom_m = max(box.start_z, 0.0) / 1000.0
-        k_bottom = conductivity_values.get("Epoxy, Silver filled", 1.6)
-        R_bottom_cond = distance_to_bottom_m / (k_bottom * area_xy + eps)
-        R_bottom_conv = 0.1  # coarse estimate for PCB-to-ambient spreading
-        R_bottom = R_self_half + R_bottom_cond + R_bottom_conv
-
-        # Combine top & bottom in parallel
-        if R_top <= eps:
-            R_total = R_bottom
-        elif R_bottom <= eps:
-            R_total = R_top
-        else:
-            R_total = 1.0 / (1.0 / R_top + 1.0 / R_bottom)
-
-        power_w = resolve_power(box)
-
-        if power_w > 0:
-            peak_temp = ambient_temp_C + power_w * R_total
-            avg_temp = ambient_temp_C + power_w * R_total * 0.8  # slightly lower than peak
-        else:
-            peak_temp = ambient_temp_C
-            avg_temp = ambient_temp_C
-
-        results[box.name] = (
-            float(peak_temp),
-            float(avg_temp),
-            float(R_x),
-            float(R_y),
-            float(R_z),
-        )
-
-    return results
+    return solve_thermal(
+        boxes,
+        bonding_box_list,
+        TIM_boxes,
+        heatsink_obj=heatsink_obj,
+        layers=layers,
+        tim_cond=tim_cond,
+        infill_cond=infill_cond,
+        underfill_cond=underfill_cond,
+    )
 
 
 class Pin:
@@ -1888,6 +1592,9 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             power_dict=power_dict,
             anemoi_parameter_ID=anemoi_parameter_ID,
             layers=layers,
+            tim_cond=float(tim_cond_list[0]) if tim_cond_list else None,
+            infill_cond=float(infill_cond_list[0]) if infill_cond_list else None,
+            underfill_cond=float(underfill_cond_list[0]) if underfill_cond_list else None,
         )
         
         simulation_end_time = time.time()
