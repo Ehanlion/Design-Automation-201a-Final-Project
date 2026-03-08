@@ -51,6 +51,8 @@ def simulator_simulate(
     tim_cond=None,
     infill_cond=None,
     underfill_cond=None,
+    project_name=None,
+    summary_dir=None,
 ):
     """
     Solve the thermal resistance network and return per-box temperature results.
@@ -70,14 +72,16 @@ def simulator_simulate(
     from thermal_solver import solve_thermal
 
     return solve_thermal(
-            boxes=boxes,
-            bonding_box_list=bonding_box_list,
-            TIM_boxes=TIM_boxes,
-            heatsink_obj=heatsink_obj,
-            layers=layers,
-            tim_cond=tim_cond,
-            infill_cond=infill_cond,
-            underfill_cond=underfill_cond,
+        boxes=boxes,
+        bonding_box_list=bonding_box_list,
+        TIM_boxes=TIM_boxes,
+        heatsink_obj=heatsink_obj,
+        layers=layers,
+        tim_cond=tim_cond,
+        infill_cond=infill_cond,
+        underfill_cond=underfill_cond,
+        project_name=project_name,
+        summary_dir=summary_dir if summary_dir is not None else "out_therm/summaries",
     )
 
 
@@ -1520,6 +1524,26 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         deepest_node.add_child_chiplet(GPU_chiplet)
     # dedeepyo : 01-Dec-25 #
 
+        # DEBUG: print raw GPU geometry before bonding/TIM/solver
+    for box in boxes:
+        try:
+            ctype = box.chiplet_parent.get_chiplet_type()
+        except Exception:
+            ctype = ""
+
+        if ctype == "GPU":
+            print(
+                "[therm.py] GPU box check:",
+                "project_name=", project_name,
+                "system_type=", system_type,
+                "name=", box.name,
+                "width_mm=", box.width,
+                "length_mm=", box.length,
+                "height_mm=", box.height,
+                "volume_mm3=", box.width * box.length * box.height,
+                "power_w=", box.power,
+            )
+
     bonding_box_list = create_all_bonding(box_list = boxes, name_type_dict = bonding_name_type_dict, bonding_list = bonding_list) #        
     TIM_boxes = create_TIM_to_heatsink(box_list = boxes, material = "TIM0p5", min_TIM_height = min_TIM_height, system_type = system_type)
     heatsink_obj = create_heat_sink(box_list = boxes, heatsink_list = heatsink_list, heatsink_name = heatsink_name, min_TIM_height = min_TIM_height, scale_factor_x = 0, scale_factor_y = 0, area_scale_factor = 1)
@@ -1598,6 +1622,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             tim_cond=float(tim_cond_list[0]) if tim_cond_list else None,
             infill_cond=float(infill_cond_list[0]) if infill_cond_list else None,
             underfill_cond=float(underfill_cond_list[0]) if underfill_cond_list else None,
+            project_name=project_name,
+            summary_dir=os.path.join(out_dir, "summaries"),
         )
         
         simulation_end_time = time.time()

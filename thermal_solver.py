@@ -8,6 +8,10 @@ Python 3.6 compatible version.
 
 import math
 import numpy as np
+import os
+import csv
+import json
+from datetime import datetime
 
 try:
     from scipy import sparse
@@ -139,6 +143,129 @@ def _box_ambient_conduct(box):
     Treat it as a total conductance in W/K for that box, not HTC.
     """
     return _safe_float(getattr(box, "ambient_conduct", 0.0), 0.0)
+
+def _is_nonphysical_wrapper_box(box):
+    """
+    Exclude only the actual wrapper/container box itself.
+    Do NOT exclude descendant boxes just because their hierarchical
+    names contain 'set_primary'.
+    """
+    name = str(getattr(box, "name", ""))
+    name_l = name.lower()
+    ctype = str(_chiplet_type(box)).lower()
+
+    # Split hierarchical path into exact nodes
+    parts = [p for p in name_l.split(".") if p]
+
+    # Exclude ONLY the actual set_primary wrapper box itself
+    # Example excluded:
+    #   Power_Source.substrate.set_primary
+    # Example kept:
+    #   Power_Source.substrate.set_primary.GPU
+    if parts and parts[-1] == "set_primary":
+        return True
+
+    # Exclude the actual Power_Source box itself, but not descendants
+    # Example excluded:
+    #   Power_Source
+    # Example kept:
+    #   Power_Source.substrate
+    if ctype == "power_source" and len(parts) <= 1:
+        return True
+
+    return False
+
+
+def _is_physical_box(box):
+    if _is_nonphysical_wrapper_box(box):
+        return False
+
+    w = max(_safe_float(getattr(box, "width", 0.0)), 0.0)
+    l = max(_safe_float(getattr(box, "length", 0.0)), 0.0)
+    h = max(_safe_float(getattr(box, "height", 0.0)), 0.0)
+
+    if w <= 0.0 or l <= 0.0 or h <= 0.0:
+        return False
+
+    return True
+
+
+def _box_geometric_volume_m3(box):
+    return (
+        max(_safe_float(getattr(box, "width", 0.0)), EPS) * 1e-3 *
+        max(_safe_float(getattr(box, "length", 0.0)), EPS) * 1e-3 *
+        max(_safe_float(getattr(box, "height", 0.0)), EPS) * 1e-3
+    )
+
+
+def _extract_key_thermal_summary(box_results):
+    """
+    Pull out the headline metrics you actually care about for quick comparisons.
+    """
+    gpu_peak = None
+    gpu_name = None
+    hottest_hbm_peak = None
+    hottest_hbm_name = None
+
+    for name, vals in box_results.items():
+        peak_t = vals[0]
+        nl = name.lower()
+
+        if "bonding" in nl or "tim" in nl:
+            continue
+
+        if (".gpu" in nl or nl.endswith("gpu")):
+            if gpu_peak is None or peak_t > gpu_peak:
+                gpu_peak = peak_t
+                gpu_name = name
+
+        # only top-level HBM boxes, not the internal HBM_l* layers
+        if "hbm#" in nl and ".hbm_l" not in nl:
+            if hottest_hbm_peak is None or peak_t > hottest_hbm_peak:
+                hottest_hbm_peak = peak_t
+                hottest_hbm_name = name
+
+    return {
+        "gpu_box": gpu_name,
+        "gpu_peak_c": gpu_peak,
+        "hbm_box": hottest_hbm_name,
+        "hbm_peak_c": hottest_hbm_peak,
+    }
+
+
+def _append_summary_csv(summary_row, out_csv_path):
+    """
+    Append one row per simulation/config to a CSV file for easy tracking in git.
+    """
+    os.makedirs(os.path.dirname(out_csv_path), exist_ok=True)
+
+    fieldnames = [
+        "timestamp",
+        "project_name",
+        "grid_nx",
+        "grid_ny",
+        "grid_nz",
+        "nvox",
+        "total_power_w",
+        "gpu_box",
+        "gpu_peak_c",
+        "hbm_box",
+        "hbm_peak_c",
+    ]
+
+    write_header = not os.path.exists(out_csv_path)
+
+    with open(out_csv_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(summary_row)
+
+
+def _write_summary_json(summary_row, out_json_path):
+    os.makedirs(os.path.dirname(out_json_path), exist_ok=True)
+    with open(out_json_path, "w") as f:
+        json.dump(summary_row, f, indent=2, sort_keys=True)
 
 # ============================================================
 # Material / stackup parsing
@@ -423,6 +550,7 @@ def _find_owner_box_for_voxel(xc, yc, zc, all_boxes):
 
 def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=None):
     all_boxes = _collect_all_boxes(boxes, bonding_box_list, TIM_boxes)
+    ownership_boxes = [b for b in all_boxes if _is_physical_box(b)]
     layer_map = _build_layer_map(layers)
 
     owner_box_idx = np.full(grid["nvox"], -1, dtype=int)
@@ -446,11 +574,11 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
                 xc = xcs[i]
                 n = _idx(i, j, k, grid)
 
-                bi = _find_owner_box_for_voxel(xc, yc, zc, all_boxes)
+                bi = _find_owner_box_for_voxel(xc, yc, zc, ownership_boxes)
                 owner_box_idx[n] = bi
 
                 if bi >= 0:
-                    box = all_boxes[bi]
+                    box = ownership_boxes[bi]
                     voxel_k[n] = _retrieve_conductivity(box, zlo, zhi, layer_map)
                 else:
                     voxel_k[n] = _get_k("Air")
@@ -485,7 +613,7 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
 
     # Pass 3: distribute power by owned voxel volume
     for bi, voxel_list in sorted(voxels_by_box.items()):
-        box = all_boxes[bi]
+        box = ownership_boxes[bi]
         pbox = _infer_box_power_w(box)
 
         if pbox > 0.0:
@@ -515,7 +643,7 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
 
     # Pass 4: distribute box ambient conductance by exposed top area
     for bi, top_voxels in top_surface_voxels_by_box.items():
-        box = all_boxes[bi]
+        box = ownership_boxes[bi]
         g_box = _box_ambient_conduct(box)
 
         if g_box > 0.0 and len(top_voxels) > 0:
@@ -534,7 +662,36 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
 
     print("[thermal_solver] total assigned power = {:.6f} W".format(total_power))
 
-    return owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes
+    # sanity report for powered boxes
+    print("[thermal_solver] ownership sanity check:")
+    for bi, voxel_list in sorted(voxels_by_box.items()):
+        box = ownership_boxes[bi]
+        pbox = _infer_box_power_w(box)
+        if pbox <= 0.0:
+            continue
+
+        owned_vol = 0.0
+        for n in voxel_list:
+            i, j, k = _ijk_from_idx(n, grid)
+            owned_vol += _voxel_volume_m3_from_indices(grid, i, j, k)
+
+        geom_vol = _box_geometric_volume_m3(box)
+        ratio = owned_vol / max(geom_vol, EPS)
+        pden = pbox / max(owned_vol, EPS)
+
+        print(
+            "  {} : geom_vol={:.6e} m^3 owned_vol={:.6e} m^3 "
+            "owned/geom={:.3f} power={:.6f} W power_density={:.6e} W/m^3".format(
+                getattr(box, "name", "box_{}".format(bi)),
+                geom_vol,
+                owned_vol,
+                ratio,
+                pbox,
+                pden
+            )
+        )
+
+    return owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, ownership_boxes, total_power
 
 
 # ============================================================
@@ -739,10 +896,21 @@ def _print_grid_summary(grid):
         )
     )
 
-
 def _print_temperature_summary(box_results):
-    gpu_items = [(k, v) for k, v in box_results.items() if "gpu" in k.lower() or "wafer" in k.lower()]
-    hbm_items = [(k, v) for k, v in box_results.items() if "hbm" in k.lower() or "dram" in k.lower()]
+    gpu_items = []
+    hbm_items = []
+
+    for k, v in box_results.items():
+        kl = k.lower()
+
+        if "bonding" in kl or "tim" in kl:
+            continue
+
+        if ".gpu" in kl or kl.endswith("gpu"):
+            gpu_items.append((k, v))
+
+        if "hbm#" in kl and ".hbm_l" not in kl:
+            hbm_items.append((k, v))
 
     if gpu_items:
         hottest_gpu = max(gpu_items, key=lambda kv: kv[1][0])
@@ -770,6 +938,8 @@ def solve_thermal(
     tim_cond=None,
     infill_cond=None,
     underfill_cond=None,
+    project_name=None,
+    summary_dir="out_therm/summaries",
 ):
     if tim_cond is not None:
         CONDUCTIVITY["TIM0p5"] = float(tim_cond)
@@ -784,7 +954,7 @@ def solve_thermal(
     grid = build_global_grid(boxes, bonding_box_list, TIM_boxes)
     _print_grid_summary(grid)
 
-    owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes = assign_materials_and_power(
+    owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes, total_power = assign_materials_and_power(
         grid=grid,
         boxes=boxes,
         bonding_box_list=bonding_box_list,
@@ -814,4 +984,34 @@ def solve_thermal(
     )
 
     _print_temperature_summary(results)
+
+    summary = _extract_key_thermal_summary(results)
+    summary_row = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "project_name": project_name if project_name else "unknown_project",
+        "grid_nx": grid["nx"],
+        "grid_ny": grid["ny"],
+        "grid_nz": grid["nz"],
+        "nvox": grid["nvox"],
+        "total_power_w": total_power,
+        "gpu_box": summary["gpu_box"],
+        "gpu_peak_c": summary["gpu_peak_c"],
+        "hbm_box": summary["hbm_box"],
+        "hbm_peak_c": summary["hbm_peak_c"],
+    }
+
+    print("[thermal_solver] FINAL_SUMMARY project={} gpu_peak_c={:.3f} hbm_peak_c={:.3f} nvox={}".format(
+        summary_row["project_name"],
+        summary_row["gpu_peak_c"] if summary_row["gpu_peak_c"] is not None else float("nan"),
+        summary_row["hbm_peak_c"] if summary_row["hbm_peak_c"] is not None else float("nan"),
+        summary_row["nvox"],
+    ))
+
+    csv_path = os.path.join(summary_dir, "thermal_summary.csv")
+    json_name = "{}_summary.json".format(summary_row["project_name"])
+    json_path = os.path.join(summary_dir, json_name)
+
+    _append_summary_csv(summary_row, csv_path)
+    _write_summary_json(summary_row, json_path)
+
     return results
