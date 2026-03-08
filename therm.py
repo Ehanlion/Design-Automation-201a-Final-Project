@@ -55,26 +55,29 @@ def simulator_simulate(
     """
     Solve the thermal resistance network and return per-box temperature results.
 
-    Delegates to thermal_solver.solve_thermal() which builds a 3D
-    non-uniform grid, assigns material conductivities and power sources,
-    and solves the sparse thermal conductance matrix for steady-state
-    temperatures.
-
     Returns:
-        Dictionary mapping box names to tuples of:
-            (peak_temperature_C, average_temperature_C, R_x_K_per_W, R_y_K_per_W, R_z_K_per_W)
+        dict[str, tuple]:
+            {
+                box_name: (
+                peak_temperature_C,
+                average_temperature_C,
+                R_x_K_per_W,
+                R_y_K_per_W,
+                R_z_K_per_W,
+                )
+            }
     """
     from thermal_solver import solve_thermal
 
     return solve_thermal(
-        boxes,
-        bonding_box_list,
-        TIM_boxes,
-        heatsink_obj=heatsink_obj,
-        layers=layers,
-        tim_cond=tim_cond,
-        infill_cond=infill_cond,
-        underfill_cond=underfill_cond,
+            boxes=boxes,
+            bonding_box_list=bonding_box_list,
+            TIM_boxes=TIM_boxes,
+            heatsink_obj=heatsink_obj,
+            layers=layers,
+            tim_cond=tim_cond,
+            infill_cond=infill_cond,
+            underfill_cond=underfill_cond,
     )
 
 

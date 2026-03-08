@@ -1,610 +1,817 @@
 """
-3D Finite-Difference Thermal Solver for EE201A Final Project.
+thermal_solver.py
 
-Builds a non-uniform 3D grid aligned to chiplet/bonding/TIM/heatsink
-boundaries, assigns per-voxel material conductivities using layer-by-layer
-stackup resolution, distributes power sources, assembles a sparse thermal
-conductance matrix, and solves for steady-state temperatures via Conjugate
-Gradient (with numpy iterative SOR fallback).
+Baseline 3D steady-state thermal solver for the EE201A final project.
+
+Python 3.6 compatible version.
 """
 
 import math
-import time
 import numpy as np
 
 try:
     from scipy import sparse
-    from scipy.sparse.linalg import spsolve, cg
+    from scipy.sparse.linalg import spsolve
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
 
 
-CONDUCTIVITY = {
-    "Air":                    0.025,
-    "FR-4":                   0.1,
-    "Cu-Foil":              400.0,
-    "Si":                   105.0,
-    "Aluminium":            205.0,
-    "TIM001":               100.0,
-    "Glass":                  1.36,
-    "TIM":                  100.0,
-    "TIM0p5":                 5.0,
-    "SnPb 67/37":            36.0,
-    "Epoxy, Silver filled":   1.6,
-    "EpAg":                   1.6,
-    "EpAg_filled":            1.6,
-    "Infill_material":       19.0,
-    "Polymer1":             675.0,
-    "SiO2":                   1.1,
-    "AlN":                  237.0,
-    "Epoxy":                  0.3,
-}
+# ============================================================
+# Constants / defaults
+# ============================================================
 
 AMBIENT_TEMP_C = 45.0
 GPU_TOTAL_POWER_W = 400.0
 HBM_STACK_POWER_W = 5.0
-H_BOTTOM = 10.0
+
+H_BOTTOM_W_M2K = 10.0
+H_TOP_DEFAULT_W_M2K = 5000.0
+EPS = 1e-18
 
 
-# ----------------------------------------------------------------
-# Material helpers
-# ----------------------------------------------------------------
+# ============================================================
+# Material database
+# ============================================================
+
+CONDUCTIVITY = {
+    "Air": 0.025,
+    "FR-4": 0.10,
+    "Cu-Foil": 400.0,
+    "Cu": 400.0,
+    "Copper": 400.0,
+    "Si": 105.0,
+    "Silicon": 105.0,
+    "Aluminium": 205.0,
+    "Aluminum": 205.0,
+    "TIM001": 100.0,
+    "TIM": 100.0,
+    "TIM0p5": 5.0,
+    "Glass": 1.36,
+    "SnPb 67/37": 36.0,
+    "Epoxy, Silver filled": 1.6,
+    "EpAg": 1.6,
+    "EpAg_filled": 1.6,
+    "Infill_material": 19.0,
+    "Polymer1": 675.0,
+    "SiO2": 1.1,
+    "AlN": 237.0,
+    "Epoxy": 0.3,
+    "Water": 0.6,
+}
+
+
+# ============================================================
+# Basic helpers
+# ============================================================
+
+def _safe_float(x, default=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return default
+
+
+def _box_end_x(box):
+    return _safe_float(getattr(box, "end_x", getattr(box, "start_x", 0.0) + getattr(box, "width", 0.0)))
+
+
+def _box_end_y(box):
+    return _safe_float(getattr(box, "end_y", getattr(box, "start_y", 0.0) + getattr(box, "length", 0.0)))
+
+
+def _box_end_z(box):
+    return _safe_float(getattr(box, "end_z", getattr(box, "start_z", 0.0) + getattr(box, "height", 0.0)))
+
+
+def _idx(i, j, k, grid):
+    return (k * grid["ny"] + j) * grid["nx"] + i
+
+
+def _overlap_len(a0, a1, b0, b1):
+    return max(0.0, min(a1, b1) - max(a0, b0))
+
+
+def _interval_centers(bounds):
+    return 0.5 * (bounds[:-1] + bounds[1:])
+
+def _voxel_volume_m3_from_indices(grid, i, j, k):
+    dx_mm = grid["xs"][i + 1] - grid["xs"][i]
+    dy_mm = grid["ys"][j + 1] - grid["ys"][j]
+    dz_mm = grid["zs"][k + 1] - grid["zs"][k]
+    return max(dx_mm, EPS) * 1e-3 * max(dy_mm, EPS) * 1e-3 * max(dz_mm, EPS) * 1e-3
+
+
+def _top_face_area_m2_from_indices(grid, i, j):
+    dx_mm = grid["xs"][i + 1] - grid["xs"][i]
+    dy_mm = grid["ys"][j + 1] - grid["ys"][j]
+    return max(dx_mm, EPS) * 1e-3 * max(dy_mm, EPS) * 1e-3
+
+
+def _ijk_from_idx(n, grid):
+    i = n % grid["nx"]
+    q = n // grid["nx"]
+    j = q % grid["ny"]
+    k = q // grid["ny"]
+    return i, j, k
+
+def _merge_close_coords(vals, tol=1e-4):
+    """
+    Merge nearly identical coordinates to avoid tiny sliver voxels.
+
+    tol is in the same geometry units as the box coordinates (mm).
+    """
+    vals = sorted(float(v) for v in vals)
+    if not vals:
+        return np.array([], dtype=float)
+
+    merged = [vals[0]]
+    for v in vals[1:]:
+        if abs(v - merged[-1]) < tol:
+            continue
+        merged.append(v)
+
+    return np.array(merged, dtype=float)
+
+def _box_ambient_conduct(box):
+    """
+    Repo Box stores ambient_conduct directly.
+    Treat it as a total conductance in W/K for that box, not HTC.
+    """
+    return _safe_float(getattr(box, "ambient_conduct", 0.0), 0.0)
+
+# ============================================================
+# Material / stackup parsing
+# ============================================================
 
 def _get_k(mat_str):
-    """Thermal conductivity for a simple or composite material string."""
+    if not mat_str:
+        return CONDUCTIVITY.get("Si", 105.0)
+
+    mat_str = str(mat_str).strip()
+
     if mat_str in CONDUCTIVITY:
         return CONDUCTIVITY[mat_str]
+
     if "," in mat_str and ":" in mat_str:
-        k_s, r_s = 0.0, 0.0
+        num = 0.0
+        den = 0.0
         for part in mat_str.split(","):
             part = part.strip()
-            if ":" not in part:
+            if not part:
                 continue
-            m, fs = part.rsplit(":", 1)
-            try:
-                f = float(fs)
-            except ValueError:
+
+            toks = [t.strip() for t in part.split(":")]
+            if len(toks) >= 3:
+                mat_name = toks[-2]
+                frac = _safe_float(toks[-1], 0.0)
+            elif len(toks) == 2:
+                mat_name = toks[0]
+                frac = _safe_float(toks[1], 0.0)
+            else:
                 continue
-            if f > 1.0:
-                f /= 100.0
-            k_s += f * CONDUCTIVITY.get(m.strip(), 1.0)
-            r_s += f
-        if r_s > 0:
-            return k_s / r_s
-    return CONDUCTIVITY.get("Si", 1.0)
+
+            if frac > 1.0:
+                frac /= 100.0
+
+            k = CONDUCTIVITY.get(mat_name, 1.0)
+            num += frac * k
+            den += frac
+
+        if den > 0:
+            return num / den
+
+    return CONDUCTIVITY.get(mat_str, CONDUCTIVITY.get("Si", 105.0))
 
 
 def _build_layer_map(layers):
-    """Map layer name → (thickness_mm, material_string, effective_k)."""
-    lm = {}
+    layer_map = {}
     if not layers:
-        return lm
-    for la in layers:
-        lm[la.get_name()] = (la.get_thickness(), la.get_material(), _get_k(la.get_material()))
-    return lm
+        return layer_map
+
+    for layer in layers:
+        try:
+            lname = layer.get_name()
+            lthick = _safe_float(layer.get_thickness())
+            lmat = layer.get_material()
+            layer_map[lname] = (lthick, lmat, _get_k(lmat))
+        except Exception:
+            continue
+
+    return layer_map
 
 
-def _parse_stackup(box, lm):
-    """Parse box stackup into list of (thickness_mm, k) tuples, bottom-up."""
+def _parse_stackup(box, layer_map):
     su = getattr(box, "stackup", None)
     if not su:
-        return [(max(box.height, 1e-6), _get_k("Si"))]
+        mat = getattr(box, "material", None)
+        return [(max(_safe_float(box.height), 1e-6), _get_k(mat if mat else "Si"))]
+
+    su = str(su).strip()
+    if not su:
+        return [(max(_safe_float(box.height), 1e-6), _get_k("Si"))]
+
+    result = []
 
     first = su.split(",", 1)[0]
     if first.count(":") >= 2:
-        p = first.split(":")
-        m1 = p[1].strip()
-        try:
-            r1 = float(p[2])
-        except (IndexError, ValueError):
-            r1 = 50.0
-        try:
-            rhs = su.split(",", 1)[1]
-        except IndexError:
-            return [(max(box.height, 1e-6), _get_k(m1))]
-        if ":" in rhs:
-            m2, r2s = rhs.rsplit(":", 1)
-            try:
-                r2 = float(r2s)
-            except ValueError:
-                r2 = 100 - r1
-        else:
-            m2, r2 = rhs.strip(), 100 - r1
-        if r1 > 1:
-            r1 /= 100.0
-        if r2 > 1:
-            r2 /= 100.0
-        tot = r1 + r2
-        k_eff = (r1 * _get_k(m1) + r2 * _get_k(m2.strip())) / tot if tot > 0 else _get_k("Si")
-        return [(max(box.height, 1e-6), k_eff)]
+        return [(max(_safe_float(box.height), 1e-6), _get_k(su))]
 
-    result = []
     for entry in su.split(","):
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split(":")
-        if len(parts) < 2:
+
+        toks = [t.strip() for t in entry.split(":")]
+        if len(toks) < 2:
             continue
-        try:
-            cnt = float(parts[0]) if parts[0] else 1.0
-        except ValueError:
-            cnt = 1.0
-        ln = parts[1]
-        if ln in lm:
-            t_mm, _, k = lm[ln]
-            result.insert(0, (cnt * t_mm, k))
+
+        count = _safe_float(toks[0], 1.0)
+        layer_name = toks[1]
+
+        if layer_name in layer_map:
+            thick_mm, _, k = layer_map[layer_name]
+            result.append((count * thick_mm, k))
         else:
-            result.insert(0, (cnt * 0.1, _get_k(ln)))
-    return result if result else [(max(box.height, 1e-6), _get_k("Si"))]
+            result.append((count * 0.1, _get_k(layer_name)))
+
+    if not result:
+        result = [(max(_safe_float(box.height), 1e-6), _get_k("Si"))]
+
+    return result
 
 
-def _box_eff_k(box, lm):
-    """Volume-weighted average conductivity for the whole box."""
-    layers = _parse_stackup(box, lm)
-    tw = sum(t for t, _ in layers)
-    if tw <= 0:
-        return _get_k("Si")
-    return sum(t * k for t, k in layers) / tw
+def _retrieve_conductivity(box, voxel_z_lo_mm, voxel_z_hi_mm, layer_map):
+    stack = _parse_stackup(box, layer_map)
+
+    z_local_lo = voxel_z_lo_mm - _safe_float(box.start_z)
+    z_local_hi = voxel_z_hi_mm - _safe_float(box.start_z)
+
+    cursor = 0.0
+    weighted_sum = 0.0
+    covered = 0.0
+
+    for thick_mm, k in stack:
+        lay_lo = cursor
+        lay_hi = cursor + thick_mm
+        ov = _overlap_len(z_local_lo, z_local_hi, lay_lo, lay_hi)
+        if ov > 0:
+            weighted_sum += ov * k
+            covered += ov
+        cursor = lay_hi
+
+    if covered > 0:
+        return weighted_sum / covered
+
+    return _get_k(getattr(box, "material", None) or "Si")
 
 
-def _retrieve_conductivity(box, voxel_z_lo, voxel_z_hi, lm):
-    """Compute effective k for a specific z-slice through the box stackup.
+# ============================================================
+# Box classification / power
+# ============================================================
 
-    Walks through each layer in the stackup (bottom-up), finds the overlap
-    between the layer's z-span and the voxel's z-span, and computes a
-    thickness-weighted average conductivity.
+def _box_name_lower(box):
+    return str(getattr(box, "name", "")).lower()
+
+
+def _chiplet_type_lower(box):
+    try:
+        return str(box.chiplet_parent.get_chiplet_type()).lower()
+    except Exception:
+        return ""
+
+
+def _is_gpu_box(box):
+    nm = _box_name_lower(box)
+    tp = _chiplet_type_lower(box)
+    return ("gpu" in nm) or ("gpu" in tp) or ("wafer" in nm and "hbm" not in nm)
+
+
+def _is_hbm_box(box):
+    nm = _box_name_lower(box)
+    tp = _chiplet_type_lower(box)
+    return ("hbm" in nm) or ("dram" in nm) or ("hbm" in tp)
+
+
+def _chiplet_type(box):
+    try:
+        return str(box.chiplet_parent.get_chiplet_type())
+    except Exception:
+        return ""
+
+
+def _infer_box_power_w(box):
     """
-    layers = _parse_stackup(box, lm)
-    if not layers:
-        return _get_k("Si")
+    Use repo metadata instead of broad name matching.
 
-    voxel_dz = voxel_z_hi - voxel_z_lo
-    if voxel_dz <= 0:
-        return _get_k("Si")
+    Rules:
+    - Power_Source contributes 0 W to the thermal target model.
+    - GPU should be forced to 400 W total per project spec.
+    - HBM should be 5 W per stack total per project spec.
+      The existing hierarchy appears to split that as:
+          HBM      = 1.0 W
+          HBM_l*   = 0.5 W each for 8 layers
+      which sums to 5 W, so we preserve that distribution.
+    - Passive/support regions get 0.
+    """
+    ctype = _chiplet_type(box)
+    name = str(getattr(box, "name", "")).lower()
 
-    current_z = box.start_z
-    k_acc = 0.0
-    for t_mm, k in layers:
-        layer_lo = current_z
-        layer_hi = current_z + t_mm
-        current_z = layer_hi
-        ov_lo = max(layer_lo, voxel_z_lo)
-        ov_hi = min(layer_hi, voxel_z_hi)
-        if ov_lo < ov_hi:
-            k_acc += (ov_hi - ov_lo) / voxel_dz * k
+    if ctype == "Power_Source":
+        return 0.0
 
-    return k_acc if k_acc > 0 else _get_k("Si")
+    # Project spec override: GPU total should be 400 W
+    if ctype == "GPU":
+        return 400.0
+
+    # Preserve existing per-stack decomposition if present
+    if ctype == "HBM":
+        return 1.0
+
+    if ctype.startswith("HBM_l"):
+        return 0.5
+
+    blocked_terms = [
+        "bonding",
+        "tim",
+        "substrate",
+        "interposer",
+        "underfill",
+        "infill",
+        "heatsink",
+    ]
+    for term in blocked_terms:
+        if term in name:
+            return 0.0
+
+    return 0.0
 
 
-# ----------------------------------------------------------------
-# Grid construction
-# ----------------------------------------------------------------
+# ============================================================
+# Geometry aggregation
+# ============================================================
 
-def _subdivide(edges, max_s, min_s):
-    out = [edges[0]]
-    for i in range(len(edges) - 1):
-        span = edges[i + 1] - edges[i]
-        if span > max_s:
-            n = max(2, int(math.ceil(span / max_s)))
-            for j in range(1, n):
-                out.append(edges[i] + j * span / n)
-        out.append(edges[i + 1])
-    merged = [out[0]]
-    for v in out[1:]:
-        if v - merged[-1] >= min_s:
-            merged.append(v)
-    if abs(merged[-1] - edges[-1]) > 1e-9:
-        if merged[-1] < edges[-1]:
-            merged.append(edges[-1])
+def _collect_all_boxes(boxes, bonding_box_list, TIM_boxes):
+    all_boxes = []
+    for group in (boxes, bonding_box_list, TIM_boxes):
+        if group:
+            all_boxes.extend(group)
+    return all_boxes
+
+
+def build_global_grid(boxes, bonding_box_list, TIM_boxes):
+    all_boxes = _collect_all_boxes(boxes, bonding_box_list, TIM_boxes)
+
+    xs = set()
+    ys = set()
+    zs = set()
+
+    for box in all_boxes:
+        xs.add(_safe_float(box.start_x))
+        xs.add(_box_end_x(box))
+
+        ys.add(_safe_float(box.start_y))
+        ys.add(_box_end_y(box))
+
+        zs.add(_safe_float(box.start_z))
+        zs.add(_box_end_z(box))
+
+    xs = _merge_close_coords(xs, tol=1e-4)
+    ys = _merge_close_coords(ys, tol=1e-4)
+    zs = _merge_close_coords(zs, tol=1e-5)
+
+    if len(xs) < 2 or len(ys) < 2 or len(zs) < 2:
+        raise RuntimeError("Global thermal grid is degenerate; not enough unique x/y/z boundaries.")
+
+    return {
+        "xs": xs,
+        "ys": ys,
+        "zs": zs,
+        "nx": len(xs) - 1,
+        "ny": len(ys) - 1,
+        "nz": len(zs) - 1,
+        "nvox": (len(xs) - 1) * (len(ys) - 1) * (len(zs) - 1),
+    }
+
+
+def _find_owner_box_for_voxel(xc, yc, zc, all_boxes):
+    matches = []
+
+    for bi, box in enumerate(all_boxes):
+        x0 = _safe_float(box.start_x)
+        x1 = _box_end_x(box)
+        y0 = _safe_float(box.start_y)
+        y1 = _box_end_y(box)
+        z0 = _safe_float(box.start_z)
+        z1 = _box_end_z(box)
+
+        inside = (
+            x0 - 1e-12 <= xc <= x1 + 1e-12 and
+            y0 - 1e-12 <= yc <= y1 + 1e-12 and
+            z0 - 1e-12 <= zc <= z1 + 1e-12
+        )
+        if inside:
+            vol = max((x1 - x0) * (y1 - y0) * (z1 - z0), EPS)
+            matches.append((vol, bi))
+
+    if not matches:
+        return -1
+
+    matches.sort(key=lambda t: t[0])
+    return matches[0][1]
+
+
+def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=None):
+    all_boxes = _collect_all_boxes(boxes, bonding_box_list, TIM_boxes)
+    layer_map = _build_layer_map(layers)
+
+    owner_box_idx = np.full(grid["nvox"], -1, dtype=int)
+    voxel_k = np.full(grid["nvox"], _get_k("Air"), dtype=float)
+    voxel_power = np.zeros(grid["nvox"], dtype=float)
+    voxel_ambient_g = np.zeros(grid["nvox"], dtype=float)
+
+    xcs = _interval_centers(grid["xs"])
+    ycs = _interval_centers(grid["ys"])
+    zcs = _interval_centers(grid["zs"])
+
+    # Pass 1: ownership + material
+    for k in range(grid["nz"]):
+        zlo = grid["zs"][k]
+        zhi = grid["zs"][k + 1]
+        zc = zcs[k]
+
+        for j in range(grid["ny"]):
+            yc = ycs[j]
+            for i in range(grid["nx"]):
+                xc = xcs[i]
+                n = _idx(i, j, k, grid)
+
+                bi = _find_owner_box_for_voxel(xc, yc, zc, all_boxes)
+                owner_box_idx[n] = bi
+
+                if bi >= 0:
+                    box = all_boxes[bi]
+                    voxel_k[n] = _retrieve_conductivity(box, zlo, zhi, layer_map)
+                else:
+                    voxel_k[n] = _get_k("Air")
+
+    voxels_by_box = {}
+    top_surface_voxels_by_box = {}
+
+    # Pass 2: group voxels by owner and detect top-of-box voxels
+    for k in range(grid["nz"]):
+        for j in range(grid["ny"]):
+            for i in range(grid["nx"]):
+                n = _idx(i, j, k, grid)
+                bi = owner_box_idx[n]
+                if bi < 0:
+                    continue
+
+                voxels_by_box.setdefault(int(bi), []).append(n)
+
+                is_top_surface = False
+                if k == grid["nz"] - 1:
+                    is_top_surface = True
+                else:
+                    nabove = _idx(i, j, k + 1, grid)
+                    if owner_box_idx[nabove] != bi:
+                        is_top_surface = True
+
+                if is_top_surface:
+                    top_surface_voxels_by_box.setdefault(int(bi), []).append(n)
+
+    print("[thermal_solver] powered boxes:")
+    total_power = 0.0
+
+    # Pass 3: distribute power by owned voxel volume
+    for bi, voxel_list in sorted(voxels_by_box.items()):
+        box = all_boxes[bi]
+        pbox = _infer_box_power_w(box)
+
+        if pbox > 0.0:
+            voxel_volumes = []
+            total_vol = 0.0
+
+            for n in voxel_list:
+                i, j, k = _ijk_from_idx(n, grid)
+                v = _voxel_volume_m3_from_indices(grid, i, j, k)
+                voxel_volumes.append((n, v))
+                total_vol += v
+
+            if total_vol <= 0.0:
+                continue
+
+            for n, v in voxel_volumes:
+                voxel_power[n] += pbox * (v / total_vol)
+
+            total_power += pbox
+            print("  {} : chiplet_type={} power={:.6f} W, owned_voxels={}, owned_volume={:.6e} m^3".format(
+                getattr(box, "name", "box_{}".format(bi)),
+                _chiplet_type(box),
+                pbox,
+                len(voxel_list),
+                total_vol
+            ))
+
+    # Pass 4: distribute box ambient conductance by exposed top area
+    for bi, top_voxels in top_surface_voxels_by_box.items():
+        box = all_boxes[bi]
+        g_box = _box_ambient_conduct(box)
+
+        if g_box > 0.0 and len(top_voxels) > 0:
+            area_list = []
+            total_area = 0.0
+
+            for n in top_voxels:
+                i, j, k = _ijk_from_idx(n, grid)
+                a = _top_face_area_m2_from_indices(grid, i, j)
+                area_list.append((n, a))
+                total_area += a
+
+            if total_area > 0.0:
+                for n, a in area_list:
+                    voxel_ambient_g[n] += g_box * (a / total_area)
+
+    print("[thermal_solver] total assigned power = {:.6f} W".format(total_power))
+
+    return owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes
+
+
+# ============================================================
+# Boundary / heatsink handling
+# ============================================================
+
+def _get_top_htc_w_m2k(heatsink_obj=None):
+    if heatsink_obj is not None:
+        for attr_name in [
+            "get_heat_transfer_coeff",
+            "get_heat_transfer_coefficient",
+            "get_htc",
+        ]:
+            fn = getattr(heatsink_obj, attr_name, None)
+            if callable(fn):
+                try:
+                    val = _safe_float(fn(), 0.0)
+                    if val > 0:
+                        return val
+                except Exception:
+                    pass
+
+        for attr_name in ["htc", "heat_transfer_coeff", "heat_transfer_coefficient"]:
+            if hasattr(heatsink_obj, attr_name):
+                val = _safe_float(getattr(heatsink_obj, attr_name), 0.0)
+                if val > 0:
+                    return val
+
+    return H_TOP_DEFAULT_W_M2K
+
+
+def _face_area_m2(dirn, dx_mm, dy_mm, dz_mm):
+    dx_m = dx_mm * 1e-3
+    dy_m = dy_mm * 1e-3
+    dz_m = dz_mm * 1e-3
+
+    if dirn == "x":
+        return max(dy_m * dz_m, EPS)
+    if dirn == "y":
+        return max(dx_m * dz_m, EPS)
+    if dirn == "z":
+        return max(dx_m * dy_m, EPS)
+
+    raise ValueError("Unknown direction {}".format(dirn))
+
+
+def _neighbor_conductance_w_k(k1, k2, center_dist_mm, area_m2):
+    d_m = center_dist_mm * 1e-3
+    r = (0.5 * d_m) / max(k1 * area_m2, EPS) + (0.5 * d_m) / max(k2 * area_m2, EPS)
+    return 1.0 / max(r, EPS)
+
+
+# ============================================================
+# Matrix assembly
+# ============================================================
+
+def assemble_sparse_system(grid, voxel_k_w_mk, voxel_power_w, voxel_ambient_g=None, heatsink_obj=None):
+    if not HAS_SCIPY:
+        raise RuntimeError("SciPy is required for the sparse thermal solve.")
+
+    nvox = grid["nvox"]
+    rows = []
+    cols = []
+    data = []
+    b = np.array(voxel_power_w, dtype=float)
+
+    if voxel_ambient_g is None:
+        voxel_ambient_g = np.zeros(nvox, dtype=float)
+
+    top_htc = _get_top_htc_w_m2k(heatsink_obj)
+
+    dxs = grid["xs"][1:] - grid["xs"][:-1]
+    dys = grid["ys"][1:] - grid["ys"][:-1]
+    dzs = grid["zs"][1:] - grid["zs"][:-1]
+
+    diag = np.zeros(nvox, dtype=float)
+
+    def add_entry(r, c, val):
+        rows.append(r)
+        cols.append(c)
+        data.append(val)
+
+    def add_edge(n, m, g):
+        diag[n] += g
+        diag[m] += g
+        add_entry(n, m, -g)
+        add_entry(m, n, -g)
+
+    for k in range(grid["nz"]):
+        dz_mm = dzs[k]
+        for j in range(grid["ny"]):
+            dy_mm = dys[j]
+            for i in range(grid["nx"]):
+                dx_mm = dxs[i]
+                n = _idx(i, j, k, grid)
+                k_here = voxel_k_w_mk[n]
+
+                if i + 1 < grid["nx"]:
+                    m = _idx(i + 1, j, k, grid)
+                    area = _face_area_m2("x", dx_mm, dy_mm, dz_mm)
+                    center_dist_mm = 0.5 * dx_mm + 0.5 * dxs[i + 1]
+                    g = _neighbor_conductance_w_k(k_here, voxel_k_w_mk[m], center_dist_mm, area)
+                    add_edge(n, m, g)
+
+                if j + 1 < grid["ny"]:
+                    m = _idx(i, j + 1, k, grid)
+                    area = _face_area_m2("y", dx_mm, dy_mm, dz_mm)
+                    center_dist_mm = 0.5 * dy_mm + 0.5 * dys[j + 1]
+                    g = _neighbor_conductance_w_k(k_here, voxel_k_w_mk[m], center_dist_mm, area)
+                    add_edge(n, m, g)
+
+                if k + 1 < grid["nz"]:
+                    m = _idx(i, j, k + 1, grid)
+                    area = _face_area_m2("z", dx_mm, dy_mm, dz_mm)
+                    center_dist_mm = 0.5 * dz_mm + 0.5 * dzs[k + 1]
+                    g = _neighbor_conductance_w_k(k_here, voxel_k_w_mk[m], center_dist_mm, area)
+                    add_edge(n, m, g)
+
+                # weak fallback cooling at package bottom
+                if k == 0:
+                    area = _face_area_m2("z", dx_mm, dy_mm, dz_mm)
+                    g_amb = H_BOTTOM_W_M2K * area
+                    diag[n] += g_amb
+                    b[n] += g_amb * AMBIENT_TEMP_C
+
+                # main box-defined cooling path
+                if voxel_ambient_g[n] > 0.0:
+                    diag[n] += voxel_ambient_g[n]
+                    b[n] += voxel_ambient_g[n] * AMBIENT_TEMP_C
+
+                # last-resort fallback at very top
+                elif k == grid["nz"] - 1:
+                    area = _face_area_m2("z", dx_mm, dy_mm, dz_mm)
+                    g_amb = top_htc * area
+                    diag[n] += g_amb
+                    b[n] += g_amb * AMBIENT_TEMP_C
+
+    for n in range(nvox):
+        add_entry(n, n, diag[n])
+
+    G = sparse.coo_matrix((data, (rows, cols)), shape=(nvox, nvox)).tocsr()
+    return G, b
+
+
+def solve_steady_state(G, b):
+    if not HAS_SCIPY:
+        raise RuntimeError("SciPy is required for the sparse thermal solve.")
+
+    T = spsolve(G, b)
+    return np.asarray(T, dtype=float)
+
+
+# ============================================================
+# Reduction back to boxes
+# ============================================================
+
+def _box_directional_resistances(box):
+    mat = getattr(box, "material", None)
+    k = _get_k(mat if mat else "Si")
+
+    w_m = max(_safe_float(box.width) * 1e-3, EPS)
+    l_m = max(_safe_float(box.length) * 1e-3, EPS)
+    h_m = max(_safe_float(box.height) * 1e-3, EPS)
+
+    rx = w_m / max(k * l_m * h_m, EPS)
+    ry = l_m / max(k * w_m * h_m, EPS)
+    rz = h_m / max(k * w_m * l_m, EPS)
+    return rx, ry, rz
+
+
+def reduce_to_box_metrics(temperatures_c, owner_box_idx, all_boxes):
+    voxels_by_box = {}
+    for n, bi in enumerate(owner_box_idx):
+        if bi >= 0:
+            voxels_by_box.setdefault(int(bi), []).append(float(temperatures_c[n]))
+
+    result = {}
+
+    for bi, box in enumerate(all_boxes):
+        temps = voxels_by_box.get(bi, [])
+        if temps:
+            peak_t = max(temps)
+            avg_t = sum(temps) / len(temps)
         else:
-            merged[-1] = edges[-1]
-    return np.array(merged)
+            peak_t = AMBIENT_TEMP_C
+            avg_t = AMBIENT_TEMP_C
+
+        rx, ry, rz = _box_directional_resistances(box)
+        result[getattr(box, "name", "box_{}".format(bi))] = (peak_t, avg_t, rx, ry, rz)
+
+    return result
 
 
-def build_grid(all_boxes, hs_obj, max_xy=2.0, max_z=0.3, min_s=0.001):
-    xs, ys, zs = set(), set(), set()
-    for b in all_boxes:
-        xs.update([round(b.start_x, 6), round(b.end_x, 6)])
-        ys.update([round(b.start_y, 6), round(b.end_y, 6)])
-        zs.update([round(b.start_z, 6), round(b.end_z, 6)])
-    hs = hs_obj or {}
-    if hs:
-        hx, hdx = float(hs.get("x", 0)), float(hs.get("base_dx", 0))
-        hy, hdy = float(hs.get("y", 0)), float(hs.get("base_dy", 0))
-        hz, hdz = float(hs.get("z", 0)), float(hs.get("base_dz", 0))
-        xs.update([round(hx, 6), round(hx + hdx, 6)])
-        ys.update([round(hy, 6), round(hy + hdy, 6)])
-        zs.update([round(hz, 6), round(hz + hdz, 6)])
-    return (
-        _subdivide(sorted(xs), max_xy, min_s),
-        _subdivide(sorted(ys), max_xy, min_s),
-        _subdivide(sorted(zs), max_z, min_s * 0.2),
+# ============================================================
+# Debug helpers
+# ============================================================
+
+def _print_grid_summary(grid):
+    print(
+        "[thermal_solver] grid: nx={}, ny={}, nz={}, nvox={}".format(
+            grid["nx"], grid["ny"], grid["nz"], grid["nvox"]
+        )
     )
 
 
-# ----------------------------------------------------------------
-# Cell-range helper
-# ----------------------------------------------------------------
+def _print_temperature_summary(box_results):
+    gpu_items = [(k, v) for k, v in box_results.items() if "gpu" in k.lower() or "wafer" in k.lower()]
+    hbm_items = [(k, v) for k, v in box_results.items() if "hbm" in k.lower() or "dram" in k.lower()]
 
-def _cr(edges, lo, hi, eps=0.0005):
-    i0 = max(0, int(np.searchsorted(edges, lo - eps)))
-    i1 = min(len(edges) - 1, int(np.searchsorted(edges, hi - eps)))
-    return i0, i1
+    if gpu_items:
+        hottest_gpu = max(gpu_items, key=lambda kv: kv[1][0])
+        print("[thermal_solver] hottest GPU-like box: {} peak={:.3f} C".format(
+            hottest_gpu[0], hottest_gpu[1][0]
+        ))
 
-
-# ----------------------------------------------------------------
-# Assign material conductivities (layer-by-layer)
-# ----------------------------------------------------------------
-
-def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
-    nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
-    k = np.full((nx, ny, nz), CONDUCTIVITY["Air"])
-    lm = _build_layer_map(layers)
-
-    excluded = {"interposer", "substrate", "PCB", "Power_Source"}
-    chiplet_boxes = []
-    for b in all_boxes:
-        cp = getattr(b, "chiplet_parent", None)
-        if cp and cp.get_chiplet_type() not in excluded:
-            chiplet_boxes.append(b)
-
-    if chiplet_boxes:
-        chip_z_bot = min(b.start_z for b in chiplet_boxes)
-        chip_z_top = max(b.end_z for b in chiplet_boxes)
-    else:
-        chip_z_bot = min(b.start_z for b in all_boxes)
-        chip_z_top = max(b.end_z for b in all_boxes)
-
-    chip_x_lo = min(b.start_x for b in chiplet_boxes) if chiplet_boxes else xe[0]
-    chip_x_hi = max(b.end_x for b in chiplet_boxes) if chiplet_boxes else xe[-1]
-    chip_y_lo = min(b.start_y for b in chiplet_boxes) if chiplet_boxes else ye[0]
-    chip_y_hi = max(b.end_y for b in chiplet_boxes) if chiplet_boxes else ye[-1]
-
-    ci0, ci1 = _cr(xe, chip_x_lo, chip_x_hi)
-    cj0, cj1 = _cr(ye, chip_y_lo, chip_y_hi)
-    for kk in range(nz):
-        zc = (ze[kk] + ze[kk + 1]) / 2.0
-        if chip_z_bot - 0.01 <= zc <= chip_z_top + 0.01:
-            k[ci0:ci1, cj0:cj1, kk] = infill_k
-
-    for box in sorted(all_boxes, key=lambda b: b.width * b.length * b.height, reverse=True):
-        i0, i1 = _cr(xe, box.start_x, box.end_x)
-        j0, j1 = _cr(ye, box.start_y, box.end_y)
-        k0, k1 = _cr(ze, box.start_z, box.end_z)
-        if i0 >= i1 or j0 >= j1 or k0 >= k1:
-            continue
-        for kk in range(k0, k1):
-            vz_lo = ze[kk]
-            vz_hi = ze[kk + 1]
-            kv = _retrieve_conductivity(box, vz_lo, vz_hi, lm)
-            k[i0:i1, j0:j1, kk] = kv
-
-    hs = hs_obj or {}
-    if hs:
-        hx, hdx = float(hs.get("x", 0)), float(hs.get("base_dx", 0))
-        hy, hdy = float(hs.get("y", 0)), float(hs.get("base_dy", 0))
-        hz, hdz = float(hs.get("z", 0)), float(hs.get("base_dz", 0))
-        hk = _get_k(hs.get("material", "Cu-Foil"))
-        i0, i1 = _cr(xe, hx, hx + hdx)
-        j0, j1 = _cr(ye, hy, hy + hdy)
-        k0, k1 = _cr(ze, hz, hz + hdz)
-        if k0 < k1:
-            k[i0:i1, j0:j1, k0:k1] = hk
-    return k
+    if hbm_items:
+        hottest_hbm = max(hbm_items, key=lambda kv: kv[1][0])
+        print("[thermal_solver] hottest HBM-like box: {} peak={:.3f} C".format(
+            hottest_hbm[0], hottest_hbm[1][0]
+        ))
 
 
-# ----------------------------------------------------------------
-# Assign power sources
-# ----------------------------------------------------------------
+# ============================================================
+# Top-level API
+# ============================================================
 
-def assign_power(boxes, xe, ye, ze):
-    nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
-    q = np.zeros((nx, ny, nz))
-
-    gpu_b, hbm_leaf = [], []
-    for box in boxes:
-        cp = getattr(box, "chiplet_parent", None)
-        if cp is None:
-            continue
-        ct = cp.get_chiplet_type()
-        kids = len(cp.get_child_chiplets()) > 0
-        if ct == "GPU":
-            gpu_b.append(box)
-        elif ct.startswith("HBM") and not kids:
-            hbm_leaf.append(box)
-
-    n_stacks = sum(
-        1 for b in boxes
-        if getattr(b, "chiplet_parent", None)
-        and b.chiplet_parent.get_chiplet_type() == "HBM"
-    )
-    n_stacks = max(n_stacks, 1)
-    if n_stacks <= 1 and len(hbm_leaf) > 8:
-        n_stacks = max(1, len(hbm_leaf) // 8)
-
-    gpu_per = GPU_TOTAL_POWER_W / max(len(gpu_b), 1)
-    total_hbm = HBM_STACK_POWER_W * n_stacks
-    hbm_per = total_hbm / max(len(hbm_leaf), 1) if hbm_leaf else 0.0
-
-    pwr_list = [(b, gpu_per) for b in gpu_b]
-    pwr_list += [(b, hbm_per) for b in hbm_leaf]
-
-    for box, pwr in pwr_list:
-        if pwr <= 0:
-            continue
-        i0, i1 = _cr(xe, box.start_x, box.end_x)
-        j0, j1 = _cr(ye, box.start_y, box.end_y)
-        k0, k1 = _cr(ze, box.start_z, box.end_z)
-        if i0 >= i1 or j0 >= j1 or k0 >= k1:
-            continue
-        dxc = xe[i0 + 1 : i1 + 1] - xe[i0:i1]
-        dyc = ye[j0 + 1 : j1 + 1] - ye[j0:j1]
-        dzc = ze[k0 + 1 : k1 + 1] - ze[k0:k1]
-        vol = np.einsum("i,j,k->ijk", dxc, dyc, dzc)
-        tv = vol.sum()
-        if tv > 0:
-            q[i0:i1, j0:j1, k0:k1] += pwr / tv
-
-    return q
-
-
-# ----------------------------------------------------------------
-# System assembly and CG solver
-# ----------------------------------------------------------------
-
-def _build_system(kg, qg, xe, ye, ze, hc_top):
-    """Build sparse conductance matrix A and RHS vector b."""
-    nx, ny, nz = kg.shape
-    N = nx * ny * nz
-    eps = 1e-15
-
-    dx = (xe[1:] - xe[:-1]) / 1000.0
-    dy = (ye[1:] - ye[:-1]) / 1000.0
-    dz = (ze[1:] - ze[:-1]) / 1000.0
-    ks = np.maximum(kg, eps)
-
-    Ax = dy[None, :, None] * dz[None, None, :]
-    Gx = 1.0 / np.maximum(
-        dx[:nx-1, None, None] / (2 * ks[:nx-1] * Ax)
-        + dx[1:, None, None] / (2 * ks[1:] * Ax), eps)
-    Ay = dx[:, None, None] * dz[None, None, :]
-    Gy = 1.0 / np.maximum(
-        dy[None, :ny-1, None] / (2 * ks[:, :ny-1] * Ay)
-        + dy[None, 1:, None] / (2 * ks[:, 1:] * Ay), eps)
-    Az = dx[:, None, None] * dy[None, :, None]
-    Gz = 1.0 / np.maximum(
-        dz[None, None, :nz-1] / (2 * ks[:, :, :nz-1] * Az)
-        + dz[None, None, 1:] / (2 * ks[:, :, 1:] * Az), eps)
-
-    ci = (np.arange(nx)[:, None, None] * (ny * nz)
-          + np.arange(ny)[None, :, None] * nz
-          + np.arange(nz)[None, None, :])
-
-    lx = ci[:nx-1].ravel(); rx = ci[1:].ravel(); gx = Gx.ravel()
-    ly = ci[:,:ny-1].ravel(); ry = ci[:,1:].ravel(); gy = Gy.ravel()
-    lz = ci[:,:,:nz-1].ravel(); rz = ci[:,:,1:].ravel(); gz = Gz.ravel()
-
-    diag = np.zeros((nx, ny, nz))
-    diag[1:] += Gx; diag[:nx-1] += Gx
-    diag[:,1:] += Gy; diag[:,:ny-1] += Gy
-    diag[:,:,1:] += Gz; diag[:,:,:nz-1] += Gz
-
-    cvol = np.einsum("i,j,k->ijk", dx * 1e3, dy * 1e3, dz * 1e3)
-    rhs = qg * cvol
-
-    Af = dx[:, None] * dy[None, :]
-    Gt = 1.0 / np.maximum(dz[-1] / (2 * ks[:,:,-1] * Af) + 1.0 / (hc_top * Af + eps), eps)
-    diag[:,:,-1] += Gt
-    rhs[:,:,-1] += Gt * AMBIENT_TEMP_C
-
-    Gb = 1.0 / np.maximum(dz[0] / (2 * ks[:,:,0] * Af) + 1.0 / (H_BOTTOM * Af + eps), eps)
-    diag[:,:,0] += Gb
-    rhs[:,:,0] += Gb * AMBIENT_TEMP_C
-
-    rows = np.concatenate([lx, rx, ly, ry, lz, rz, ci.ravel()])
-    cols = np.concatenate([rx, lx, ry, ly, rz, lz, ci.ravel()])
-    vals = np.concatenate([-gx, -gx, -gy, -gy, -gz, -gz, diag.ravel()])
-
-    A = sparse.csr_matrix(
-        (vals, (rows.astype(np.int64), cols.astype(np.int64))), shape=(N, N))
-    return A, rhs.ravel(), diag.ravel()
-
-
-def _solve_sparse(kg, qg, xe, ye, ze, hc_top):
-    nx, ny, nz = kg.shape
-    N = nx * ny * nz
-    t_s = time.time()
-
-    A, b, diag_vals = _build_system(kg, qg, xe, ye, ze, hc_top)
-    print(f"    system built         ({time.time()-t_s:.2f}s)  N={N}  nnz={A.nnz}")
-
-    M_inv = sparse.diags(1.0 / np.maximum(diag_vals, 1e-15))
-    x0 = np.full(N, AMBIENT_TEMP_C)
-    T, info = cg(A, b, x0=x0, M=M_inv, tol=1e-5, maxiter=5000)
-    if info != 0:
-        print(f"    CG warning: info={info}, falling back to spsolve")
-        T = spsolve(A, b)
-    print(f"    solve done           ({time.time()-t_s:.2f}s)")
-    return T.reshape((nx, ny, nz))
-
-
-# ----------------------------------------------------------------
-# Iterative SOR solver (numpy-only fallback)
-# ----------------------------------------------------------------
-
-def _solve_iter(kg, qg, xe, ye, ze, hc_top, max_it=8000, tol=0.01, omega=1.4):
-    nx, ny, nz = kg.shape
-    eps = 1e-15
-    dx = (xe[1:] - xe[:-1]) / 1000.0
-    dy = (ye[1:] - ye[:-1]) / 1000.0
-    dz = (ze[1:] - ze[:-1]) / 1000.0
-    ks = np.maximum(kg, eps)
-
-    Ax = dy[None, :, None] * dz[None, None, :]
-    Gx = 1.0 / np.maximum(
-        dx[:nx-1, None, None] / (2 * ks[:nx-1] * Ax)
-        + dx[1:, None, None] / (2 * ks[1:] * Ax), eps)
-    Ay = dx[:, None, None] * dz[None, None, :]
-    Gy = 1.0 / np.maximum(
-        dy[None, :ny-1, None] / (2 * ks[:, :ny-1] * Ay)
-        + dy[None, 1:, None] / (2 * ks[:, 1:] * Ay), eps)
-    Az = dx[:, None, None] * dy[None, :, None]
-    Gz = 1.0 / np.maximum(
-        dz[None, None, :nz-1] / (2 * ks[:, :, :nz-1] * Az)
-        + dz[None, None, 1:] / (2 * ks[:, :, 1:] * Az), eps)
-
-    diag = np.zeros((nx, ny, nz))
-    diag[1:] += Gx; diag[:nx-1] += Gx
-    diag[:,1:] += Gy; diag[:,:ny-1] += Gy
-    diag[:,:,1:] += Gz; diag[:,:,:nz-1] += Gz
-
-    cvol = np.einsum("i,j,k->ijk", dx * 1e3, dy * 1e3, dz * 1e3)
-    rhs = qg * cvol
-
-    Af = dx[:, None] * dy[None, :]
-    Gt = 1.0 / np.maximum(dz[-1] / (2 * ks[:,:,-1] * Af) + 1.0 / (hc_top * Af + eps), eps)
-    diag[:,:,-1] += Gt
-    rhs[:,:,-1] += Gt * AMBIENT_TEMP_C
-    Gb = 1.0 / np.maximum(dz[0] / (2 * ks[:,:,0] * Af) + 1.0 / (H_BOTTOM * Af + eps), eps)
-    diag[:,:,0] += Gb
-    rhs[:,:,0] += Gb * AMBIENT_TEMP_C
-
-    diag = np.maximum(diag, eps)
-    T = np.full((nx, ny, nz), AMBIENT_TEMP_C)
-
-    for it in range(max_it):
-        GT = np.zeros_like(T)
-        GT[1:] += Gx * T[:nx-1]
-        GT[:nx-1] += Gx * T[1:]
-        GT[:,1:] += Gy * T[:,:ny-1]
-        GT[:,:ny-1] += Gy * T[:,1:]
-        GT[:,:,1:] += Gz * T[:,:,:nz-1]
-        GT[:,:,:nz-1] += Gz * T[:,:,1:]
-        Tn = (rhs + GT) / diag
-        Tn = omega * Tn + (1 - omega) * T
-        d = np.max(np.abs(Tn - T))
-        T = Tn
-        if d < tol:
-            print(f"  SOR converged in {it + 1} iters (maxdelta={d:.4f})")
-            break
-    else:
-        print(f"  SOR: {max_it} iters, maxdelta={d:.4f}")
-    return T
-
-
-# ----------------------------------------------------------------
-# Box-level analytical resistances
-# ----------------------------------------------------------------
-
-def _box_R(box, lm):
-    eps = 1e-12
-    layers = _parse_stackup(box, lm)
-    w = max(box.width, eps) / 1e3
-    l = max(box.length, eps) / 1e3
-    a = w * l
-
-    layers_m = [(max(t, eps) / 1e3, k) for t, k in layers]
-    Rz = sum(t / (k + eps) for t, k in layers_m) / (a + eps)
-    tt = sum(t for t, _ in layers_m)
-    kp = sum(t * k for t, k in layers_m) / (tt + eps)
-    Rx = w / (kp * tt * l + eps)
-    Ry = l / (kp * tt * w + eps)
-    return Rx, Ry, Rz
-
-
-# ----------------------------------------------------------------
-# Results extraction
-# ----------------------------------------------------------------
-
-def extract_results(boxes, Tg, xe, ye, ze, layers):
-    lm = _build_layer_map(layers)
-    res = {}
-    for box in boxes:
-        i0, i1 = _cr(xe, box.start_x, box.end_x)
-        j0, j1 = _cr(ye, box.start_y, box.end_y)
-        k0, k1 = _cr(ze, box.start_z, box.end_z)
-        if i0 >= i1 or j0 >= j1 or k0 >= k1:
-            res[box.name] = (AMBIENT_TEMP_C, AMBIENT_TEMP_C, 0.0, 0.0, 0.0)
-            continue
-        temps = Tg[i0:i1, j0:j1, k0:k1]
-        Rx, Ry, Rz = _box_R(box, lm)
-        res[box.name] = (float(np.max(temps)), float(np.mean(temps)), Rx, Ry, Rz)
-    return res
-
-
-# ----------------------------------------------------------------
-# Public entry point
-# ----------------------------------------------------------------
-
-def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
-                  tim_cond=None, infill_cond=None, underfill_cond=None, **kw):
-    """
-    Full 3D thermal solve.
-
-    Parameters
-    ----------
-    tim_cond : float, optional
-        Override TIM conductivity (W/(m·K)). Default uses CONDUCTIVITY["TIM0p5"].
-    infill_cond : float, optional
-        Override infill conductivity (W/(m·K)). Default uses CONDUCTIVITY["Infill_material"].
-    underfill_cond : float, optional
-        Override underfill conductivity (W/(m·K)). Not currently used separately.
-
-    Returns
-    -------
-    dict : {box_name: (peak_T, avg_T, R_x, R_y, R_z), ...}
-    """
-    t0 = time.time()
-
+def solve_thermal(
+    boxes,
+    bonding_box_list,
+    TIM_boxes,
+    heatsink_obj=None,
+    layers=None,
+    tim_cond=None,
+    infill_cond=None,
+    underfill_cond=None,
+):
     if tim_cond is not None:
         CONDUCTIVITY["TIM0p5"] = float(tim_cond)
+        CONDUCTIVITY["TIM"] = float(tim_cond)
+
     if infill_cond is not None:
         CONDUCTIVITY["Infill_material"] = float(infill_cond)
 
-    infill_k = CONDUCTIVITY["Infill_material"]
+    if underfill_cond is not None:
+        CONDUCTIVITY["Epoxy"] = float(underfill_cond)
 
-    all_el = list(boxes)
-    if bonding_boxes:
-        all_el.extend(bonding_boxes)
-    if tim_boxes:
-        all_el.extend(tim_boxes)
+    grid = build_global_grid(boxes, bonding_box_list, TIM_boxes)
+    _print_grid_summary(grid)
 
-    hs = heatsink_obj or {}
-    if hs:
-        print(f"  Heatsink: x={hs.get('x')}, y={hs.get('y')}, "
-              f"dx={hs.get('base_dx')}, dy={hs.get('base_dy')}, "
-              f"z={hs.get('z')}, dz={hs.get('base_dz')}, "
-              f"hc={hs.get('hc')}, mat={hs.get('material')}")
+    owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes = assign_materials_and_power(
+        grid=grid,
+        boxes=boxes,
+        bonding_box_list=bonding_box_list,
+        TIM_boxes=TIM_boxes,
+        layers=layers,
+    )
 
-    xe, ye, ze = build_grid(all_el, heatsink_obj, max_xy=2.0, max_z=0.3, min_s=0.001)
-    nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
-    print(f"  Grid: {nx} x {ny} x {nz} = {nx * ny * nz} cells  ({time.time() - t0:.2f}s)")
+    # print("[thermal_solver] total assigned power = {:.6f} W".format(np.sum(voxel_power)))
 
-    kg = assign_materials(all_el, xe, ye, ze, layers, heatsink_obj, infill_k=infill_k)
-    print(f"  Materials assigned  ({time.time() - t0:.2f}s)  "
-          f"k range: [{kg.min():.3f}, {kg.max():.1f}]")
+    if not HAS_SCIPY:
+        raise RuntimeError("SciPy is not installed in the environment. Please install scipy.")
 
-    qg = assign_power(boxes, xe, ye, ze)
-    vol = np.einsum("i,j,k->ijk", xe[1:] - xe[:-1], ye[1:] - ye[:-1], ze[1:] - ze[:-1])
-    total_p = (qg * vol).sum()
-    print(f"  Power assigned      ({time.time() - t0:.2f}s)  total={total_p:.1f} W")
+    G, b = assemble_sparse_system(
+        grid=grid,
+        voxel_k_w_mk=voxel_k,
+        voxel_power_w=voxel_power,
+        voxel_ambient_g=voxel_ambient_g,
+        heatsink_obj=heatsink_obj,
+    )
 
-    try:
-        hc = float(hs.get("hc", "7000"))
-    except (ValueError, TypeError):
-        hc = 7000.0
+    temperatures_c = solve_steady_state(G, b)
 
-    if HAS_SCIPY:
-        print("  Solving (CG with Jacobi preconditioner) ...")
-        Tg = _solve_sparse(kg, qg, xe, ye, ze, hc)
-    else:
-        print("  Solving (numpy SOR) ...")
-        Tg = _solve_iter(kg, qg, xe, ye, ze, hc)
-    print(f"  Solve done          ({time.time() - t0:.2f}s)  "
-          f"Tmin={Tg.min():.1f}  Tmax={Tg.max():.1f}")
+    results = reduce_to_box_metrics(
+        temperatures_c=temperatures_c,
+        owner_box_idx=owner_box_idx,
+        all_boxes=all_boxes,
+    )
 
-    results = extract_results(boxes, Tg, xe, ye, ze, layers)
-    print(f"  Results extracted   ({time.time() - t0:.2f}s)")
+    _print_temperature_summary(results)
     return results
