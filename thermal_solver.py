@@ -486,7 +486,41 @@ def _collect_all_boxes(boxes, bonding_box_list, TIM_boxes):
     return all_boxes
 
 
-def build_global_grid(boxes, bonding_box_list, TIM_boxes):
+def _subdivide_intervals(bounds, target_step_mm):
+    """
+    Given sorted boundary coordinates, subdivide each interval so that
+    no cell is larger than target_step_mm.
+    """
+    bounds = np.array(sorted(float(v) for v in bounds), dtype=float)
+    if len(bounds) < 2:
+        return bounds
+
+    refined = [bounds[0]]
+
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        length = b - a
+        if length <= 0:
+            continue
+
+        if target_step_mm is None or target_step_mm <= 0:
+            nsplit = 1
+        else:
+            nsplit = max(1, int(math.ceil(length / target_step_mm)))
+
+        for s in range(1, nsplit + 1):
+            refined.append(a + length * s / nsplit)
+
+    return _merge_close_coords(refined, tol=1e-6)
+
+
+def build_global_grid(
+    boxes,
+    bonding_box_list,
+    TIM_boxes,
+    target_dx_mm=2.0,
+    target_dy_mm=2.0,
+    target_dz_mm=0.25,
+):
     all_boxes = _collect_all_boxes(boxes, bonding_box_list, TIM_boxes)
 
     xs = set()
@@ -506,6 +540,11 @@ def build_global_grid(boxes, bonding_box_list, TIM_boxes):
     xs = _merge_close_coords(xs, tol=1e-4)
     ys = _merge_close_coords(ys, tol=1e-4)
     zs = _merge_close_coords(zs, tol=1e-5)
+
+    # NEW: refine each interval
+    xs = _subdivide_intervals(xs, target_dx_mm)
+    ys = _subdivide_intervals(ys, target_dy_mm)
+    zs = _subdivide_intervals(zs, target_dz_mm)
 
     if len(xs) < 2 or len(ys) < 2 or len(zs) < 2:
         raise RuntimeError("Global thermal grid is degenerate; not enough unique x/y/z boundaries.")
@@ -548,7 +587,7 @@ def _find_owner_box_for_voxel(xc, yc, zc, all_boxes):
     return matches[0][1]
 
 
-def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=None):
+def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=None, verbose=False):
     all_boxes = _collect_all_boxes(boxes, bonding_box_list, TIM_boxes)
     ownership_boxes = [b for b in all_boxes if _is_physical_box(b)]
     layer_map = _build_layer_map(layers)
@@ -608,7 +647,8 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
                 if is_top_surface:
                     top_surface_voxels_by_box.setdefault(int(bi), []).append(n)
 
-    print("[thermal_solver] powered boxes:")
+    if verbose:
+        print("[thermal_solver] powered boxes:")
     total_power = 0.0
 
     # Pass 3: distribute power by owned voxel volume
@@ -633,13 +673,14 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
                 voxel_power[n] += pbox * (v / total_vol)
 
             total_power += pbox
-            print("  {} : chiplet_type={} power={:.6f} W, owned_voxels={}, owned_volume={:.6e} m^3".format(
-                getattr(box, "name", "box_{}".format(bi)),
-                _chiplet_type(box),
-                pbox,
-                len(voxel_list),
-                total_vol
-            ))
+            if verbose:
+                print("  {} : chiplet_type={} power={:.6f} W, owned_voxels={}, owned_volume={:.6e} m^3".format(
+                    getattr(box, "name", "box_{}".format(bi)),
+                    _chiplet_type(box),
+                    pbox,
+                    len(voxel_list),
+                    total_vol
+                ))
 
     # Pass 4: distribute box ambient conductance by exposed top area
     for bi, top_voxels in top_surface_voxels_by_box.items():
@@ -663,33 +704,34 @@ def assign_materials_and_power(grid, boxes, bonding_box_list, TIM_boxes, layers=
     print("[thermal_solver] total assigned power = {:.6f} W".format(total_power))
 
     # sanity report for powered boxes
-    print("[thermal_solver] ownership sanity check:")
-    for bi, voxel_list in sorted(voxels_by_box.items()):
-        box = ownership_boxes[bi]
-        pbox = _infer_box_power_w(box)
-        if pbox <= 0.0:
-            continue
+    if verbose:
+        print("[thermal_solver] ownership sanity check:")
+        for bi, voxel_list in sorted(voxels_by_box.items()):
+            box = ownership_boxes[bi]
+            pbox = _infer_box_power_w(box)
+            if pbox <= 0.0:
+                continue
 
-        owned_vol = 0.0
-        for n in voxel_list:
-            i, j, k = _ijk_from_idx(n, grid)
-            owned_vol += _voxel_volume_m3_from_indices(grid, i, j, k)
+            owned_vol = 0.0
+            for n in voxel_list:
+                i, j, k = _ijk_from_idx(n, grid)
+                owned_vol += _voxel_volume_m3_from_indices(grid, i, j, k)
 
-        geom_vol = _box_geometric_volume_m3(box)
-        ratio = owned_vol / max(geom_vol, EPS)
-        pden = pbox / max(owned_vol, EPS)
+            geom_vol = _box_geometric_volume_m3(box)
+            ratio = owned_vol / max(geom_vol, EPS)
+            pden = pbox / max(owned_vol, EPS)
 
-        print(
-            "  {} : geom_vol={:.6e} m^3 owned_vol={:.6e} m^3 "
-            "owned/geom={:.3f} power={:.6f} W power_density={:.6e} W/m^3".format(
-                getattr(box, "name", "box_{}".format(bi)),
-                geom_vol,
-                owned_vol,
-                ratio,
-                pbox,
-                pden
+            print(
+                "  {} : geom_vol={:.6e} m^3 owned_vol={:.6e} m^3 "
+                "owned/geom={:.3f} power={:.6f} W power_density={:.6e} W/m^3".format(
+                    getattr(box, "name", "box_{}".format(bi)),
+                    geom_vol,
+                    owned_vol,
+                    ratio,
+                    pbox,
+                    pden
+                )
             )
-        )
 
     return owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, ownership_boxes, total_power
 
@@ -940,6 +982,10 @@ def solve_thermal(
     underfill_cond=None,
     project_name=None,
     summary_dir="out_therm/summaries",
+    target_dx_mm=2.0,
+    target_dy_mm=2.0,
+    target_dz_mm=0.25,
+    verbose=False,
 ):
     if tim_cond is not None:
         CONDUCTIVITY["TIM0p5"] = float(tim_cond)
@@ -951,8 +997,14 @@ def solve_thermal(
     if underfill_cond is not None:
         CONDUCTIVITY["Epoxy"] = float(underfill_cond)
 
-    grid = build_global_grid(boxes, bonding_box_list, TIM_boxes)
-    _print_grid_summary(grid)
+    grid = build_global_grid(
+        boxes,
+        bonding_box_list,
+        TIM_boxes,
+        target_dx_mm=target_dx_mm,
+        target_dy_mm=target_dy_mm,
+        target_dz_mm=target_dz_mm,
+    )
 
     owner_box_idx, voxel_k, voxel_power, voxel_ambient_g, all_boxes, total_power = assign_materials_and_power(
         grid=grid,
@@ -960,6 +1012,7 @@ def solve_thermal(
         bonding_box_list=bonding_box_list,
         TIM_boxes=TIM_boxes,
         layers=layers,
+        verbose=verbose,
     )
 
     # print("[thermal_solver] total assigned power = {:.6f} W".format(np.sum(voxel_power)))

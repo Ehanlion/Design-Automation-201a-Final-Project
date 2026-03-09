@@ -53,6 +53,10 @@ def simulator_simulate(
     underfill_cond=None,
     project_name=None,
     summary_dir=None,
+    target_dx_mm=2.0,
+    target_dy_mm=2.0,
+    target_dz_mm=0.25,
+    verbose=False,
 ):
     """
     Solve the thermal resistance network and return per-box temperature results.
@@ -82,6 +86,10 @@ def simulator_simulate(
         underfill_cond=underfill_cond,
         project_name=project_name,
         summary_dir=summary_dir if summary_dir is not None else "out_therm/summaries",
+        target_dx_mm=target_dx_mm,
+        target_dy_mm=target_dy_mm,
+        target_dz_mm=target_dz_mm,
+        verbose=verbose,
     )
 
 
@@ -1624,6 +1632,10 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             underfill_cond=float(underfill_cond_list[0]) if underfill_cond_list else None,
             project_name=project_name,
             summary_dir=os.path.join(out_dir, "summaries"),
+            target_dx_mm=1.5,
+            target_dy_mm=1.5,
+            target_dz_mm=0.20,
+            verbose=False,
         )
         
         simulation_end_time = time.time()
