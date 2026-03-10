@@ -102,17 +102,20 @@ def draw_fig(boxes, out_dir, out_name, limits):
     Colors boxes by type: interposer (black), HBM (blue), wafer (green), other (red).
     Saves the figure to out_dir/out_name.png.
     """
+    os.makedirs(out_dir, exist_ok=True)
     fig, ax = plt.subplots()
     ax.set_aspect('equal')
     for box in boxes:
-        if box.name.endswith("interposer"):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='black'))
-        elif box.name[:-1].endswith('HBM'):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='blue'))
-        elif box.name.endswith('wafer'):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='green'))
+        name_l = box.name.lower()
+        if name_l.endswith("interposer"):
+            color = 'black'
+        elif 'hbm' in name_l:
+            color = 'blue'
+        elif name_l.endswith('wafer'):
+            color = 'green'
         else:
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='red'))
+            color = 'red'
+        ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color=color))
     plt.xlim(limits[0], limits[1])
     plt.ylim(limits[2],limits[3])
     plt.savefig(out_dir+'/'+out_name+'.png')
@@ -124,6 +127,7 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
 
     Renders each box as a 3-D cuboid with colors by type. Saves to out_dir/out_name3D.png.
     """
+    os.makedirs(out_dir, exist_ok=True)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     
@@ -145,11 +149,12 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
 
         zpos = box.start_x
 
-        if box.name.endswith('interposer'):
+        name_l = box.name.lower()
+        if name_l.endswith('interposer'):
             color = 'black'
-        elif box.name[:-1].endswith('HBM'):
+        elif 'hbm' in name_l:
             color = 'blue'
-        elif box.name.endswith('wafer'):
+        elif name_l.endswith('wafer'):
             color = 'green'
         else:
             color = 'red'
@@ -1609,8 +1614,14 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
         os.makedirs(out_dir, exist_ok=True)
         yaml_output_path = os.path.join(out_dir, project_name + "_results.yaml")
+
+        # Serialize results as plain lists so graders can parse with yaml.safe_load
+        serializable_results = {
+            name: [float(v) for v in values]
+            for name, values in results.items()
+        }
         with open(yaml_output_path, 'w') as f:
-            yaml.dump(results, f, default_flow_style=False)
+            yaml.safe_dump(serializable_results, f, default_flow_style=False)
         print(f"Results written to {yaml_output_path}")
 
         return

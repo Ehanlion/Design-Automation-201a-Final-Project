@@ -33,9 +33,8 @@ CONFIG_LABELS = {
 
 
 def load_results(path):
-    loader = getattr(yaml, "FullLoader", yaml.Loader)
     with path.open() as f:
-        return yaml.load(f, Loader=loader) or {}
+        return yaml.safe_load(f) or {}
 
 
 def classify_box(name):

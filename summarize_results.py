@@ -31,10 +31,8 @@ def is_hbm(name: str) -> bool:
 
 
 def load_results(path: pathlib.Path) -> Dict[str, Tuple[float, float, float, float, float]]:
-    # Result files store tuples using the !!python/tuple tag; use FullLoader to permit them.
-    loader = getattr(yaml, "FullLoader", yaml.Loader)
     with path.open() as f:
-        data = yaml.load(f, Loader=loader) or {}
+        data = yaml.safe_load(f) or {}
     return data
 
 

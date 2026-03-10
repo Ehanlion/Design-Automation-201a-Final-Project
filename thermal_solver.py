@@ -300,38 +300,55 @@ def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
 # ----------------------------------------------------------------
 
 def assign_power(boxes, xe, ye, ze):
+    """Map chiplet power onto the voxel grid using per-box power values.
+
+    Prefer explicit power values attached to each Box (from the XML configs).
+    If no positive power is found, fall back to legacy constants so the solver
+    still runs. Power is distributed uniformly across the voxels overlapped by
+    each powered box.
+    """
+
     nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
     q = np.zeros((nx, ny, nz))
 
-    gpu_b, hbm_leaf = [], []
+    powered_boxes = []
     for box in boxes:
-        cp = getattr(box, "chiplet_parent", None)
-        if cp is None:
-            continue
-        ct = cp.get_chiplet_type()
-        kids = len(cp.get_child_chiplets()) > 0
-        if ct == "GPU":
-            gpu_b.append(box)
-        elif ct.startswith("HBM") and not kids:
-            hbm_leaf.append(box)
+        try:
+            pwr = float(getattr(box, "power", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            pwr = 0.0
+        if pwr > 0:
+            powered_boxes.append((box, pwr))
 
-    n_stacks = sum(
-        1 for b in boxes
-        if getattr(b, "chiplet_parent", None)
-        and b.chiplet_parent.get_chiplet_type() == "HBM"
-    )
-    n_stacks = max(n_stacks, 1)
-    if n_stacks <= 1 and len(hbm_leaf) > 8:
-        n_stacks = max(1, len(hbm_leaf) // 8)
+    # Fallback to legacy constants if XML powers were not present
+    if not powered_boxes:
+        gpu_b, hbm_leaf = [], []
+        for box in boxes:
+            cp = getattr(box, "chiplet_parent", None)
+            if cp is None:
+                continue
+            ct = cp.get_chiplet_type()
+            kids = len(cp.get_child_chiplets()) > 0
+            if ct == "GPU":
+                gpu_b.append(box)
+            elif ct.startswith("HBM") and not kids:
+                hbm_leaf.append(box)
 
-    gpu_per = GPU_TOTAL_POWER_W / max(len(gpu_b), 1)
-    total_hbm = HBM_STACK_POWER_W * n_stacks
-    hbm_per = total_hbm / max(len(hbm_leaf), 1) if hbm_leaf else 0.0
+        n_stacks = sum(
+            1 for b in boxes
+            if getattr(b, "chiplet_parent", None)
+            and b.chiplet_parent.get_chiplet_type() == "HBM"
+        )
+        n_stacks = max(n_stacks, 1)
+        if n_stacks <= 1 and len(hbm_leaf) > 8:
+            n_stacks = max(1, len(hbm_leaf) // 8)
 
-    pwr_list = [(b, gpu_per) for b in gpu_b]
-    pwr_list += [(b, hbm_per) for b in hbm_leaf]
+        gpu_per = GPU_TOTAL_POWER_W / max(len(gpu_b), 1)
+        total_hbm = HBM_STACK_POWER_W * n_stacks
+        hbm_per = total_hbm / max(len(hbm_leaf), 1) if hbm_leaf else 0.0
+        powered_boxes = [(b, gpu_per) for b in gpu_b] + [(b, hbm_per) for b in hbm_leaf]
 
-    for box, pwr in pwr_list:
+    for box, pwr in powered_boxes:
         if pwr <= 0:
             continue
         i0, i1 = _cr(xe, box.start_x, box.end_x)
