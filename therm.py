@@ -1635,6 +1635,15 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     # anemoi_parameter_ID = {'interposer_power': 1949, 'substrate_power': 1950, 'PCB_power': 1951, 'GPU_power': 1946, 'Power_Source_power': 1952, 'HBM_power': 1947, 'GPU_HTC_power': 1953, 'HBM_l_power': 1948, 'HBM_HTC_power': 1954}
     # print("Power dict initialized: ", power_dict)
 
+    # ============================================================
+    # Solver run settings (single source of truth for this script)
+    # ============================================================
+    solver_target_dx_mm = 5.0
+    solver_target_dy_mm = 5.0
+    solver_target_dz_mm = 0.80
+    solver_use_pyspice = False
+    solver_verbose = False
+
     if not is_repeat:
         simulation_start_time = time.time()
         print("Starting simulation at ", simulation_start_time)
@@ -1659,11 +1668,11 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             underfill_cond=float(underfill_cond_list[0]) if underfill_cond_list else None,
             project_name=project_name,
             summary_dir=os.path.join(out_dir, "summaries"),
-            target_dx_mm=5.0,
-            target_dy_mm=5.0,
-            target_dz_mm=0.80,
-            use_pyspice=False,
-            verbose=False,
+            target_dx_mm=solver_target_dx_mm,
+            target_dy_mm=solver_target_dy_mm,
+            target_dz_mm=solver_target_dz_mm,
+            use_pyspice=solver_use_pyspice,
+            verbose=solver_verbose,
         )
         
         simulation_end_time = time.time()

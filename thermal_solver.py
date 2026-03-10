@@ -392,15 +392,19 @@ def _infer_box_power_w(box):
     p = max(_safe_float(getattr(box, "power", 0.0)), 0.0)
     return p
 
-
-def _parallel_resistance(r_list):
+def _parallel_resistance(r_list, fallback=None):
     inv_sum = 0.0
     for r in r_list:
         if r > 0.0 and math.isfinite(r):
             inv_sum += 1.0 / r
-    if inv_sum <= 0.0:
-        return BIG_R
-    return 1.0 / inv_sum
+
+    if inv_sum > 0.0:
+        return 1.0 / inv_sum
+
+    if fallback is not None and fallback > 0.0 and math.isfinite(fallback):
+        return fallback
+
+    return BIG_R
 
 
 def _get_top_htc_w_m2k(heatsink_obj=None):
@@ -428,6 +432,55 @@ def _get_top_htc_w_m2k(heatsink_obj=None):
 
     return H_TOP_DEFAULT_W_M2K
 
+def _effective_box_conductivity(box, layer_map):
+    """
+    Estimate an effective conductivity for a whole box from its stackup.
+    Falls back to material/Si if needed.
+    """
+    stack = _parse_stackup(box, layer_map)
+    total_t = 0.0
+    weighted_k = 0.0
+
+    for thick_mm, k in stack:
+        if thick_mm > 0.0 and k > 0.0:
+            total_t += thick_mm
+            weighted_k += thick_mm * k
+
+    if total_t > 0.0:
+        return weighted_k / total_t
+
+    return _get_k(getattr(box, "material", None) or "Si")
+
+
+def _box_directional_geometry_resistances(box, layer_map):
+    """
+    Fallback box-level directional thermal resistances based on box geometry.
+
+    Uses:
+        Rx = Lx / (k * Ayz)
+        Ry = Ly / (k * Axz)
+        Rz = Lz / (k * Axy)
+
+    with dimensions converted from mm to meters.
+    """
+    w_mm = max(_safe_float(getattr(box, "width", 0.0)), 0.0)
+    l_mm = max(_safe_float(getattr(box, "length", 0.0)), 0.0)
+    h_mm = max(_safe_float(getattr(box, "height", 0.0)), 0.0)
+
+    if w_mm <= 0.0 or l_mm <= 0.0 or h_mm <= 0.0:
+        return BIG_R, BIG_R, BIG_R
+
+    k_eff = max(_effective_box_conductivity(box, layer_map), EPS)
+
+    w_m = w_mm * 1e-3
+    l_m = l_mm * 1e-3
+    h_m = h_mm * 1e-3
+
+    rx = w_m / max(k_eff * l_m * h_m, EPS)
+    ry = l_m / max(k_eff * w_m * h_m, EPS)
+    rz = h_m / max(k_eff * w_m * l_m, EPS)
+
+    return max(rx, EPS), max(ry, EPS), max(rz, EPS)
 
 # ============================================================
 # Adaptive grid generation
@@ -952,7 +1005,16 @@ def solve_steady_state(G, b, tol=1e-8, maxiter=2000):
 # Reduction back to boxes
 # ============================================================
 
-def _collect_directional_face_resistances(grid, owner_box_idx, voxel_k, voxel_ambient_g, heatsink_obj, bi):
+def _collect_directional_face_resistances(
+    grid,
+    owner_box_idx,
+    voxel_k,
+    voxel_ambient_g,
+    heatsink_obj,
+    bi,
+    box=None,
+    layer_map=None,
+):
     rx_list = []
     ry_list = []
     rz_list = []
@@ -965,6 +1027,7 @@ def _collect_directional_face_resistances(grid, owner_box_idx, voxel_k, voxel_am
 
         i, j, k = _ijk_from_idx(n, grid)
 
+        # X-direction boundaries
         if i == 0 or owner_box_idx[_idx(i - 1, j, k, grid)] != bi:
             if i > 0:
                 rx_list.append(_neighbor_resistance("x", grid, voxel_k, i, j, k, i - 1, j, k))
@@ -972,6 +1035,7 @@ def _collect_directional_face_resistances(grid, owner_box_idx, voxel_k, voxel_am
             if i < grid["nx"] - 1:
                 rx_list.append(_neighbor_resistance("x", grid, voxel_k, i, j, k, i + 1, j, k))
 
+        # Y-direction boundaries
         if j == 0 or owner_box_idx[_idx(i, j - 1, k, grid)] != bi:
             if j > 0:
                 ry_list.append(_neighbor_resistance("y", grid, voxel_k, i, j, k, i, j - 1, k))
@@ -979,6 +1043,7 @@ def _collect_directional_face_resistances(grid, owner_box_idx, voxel_k, voxel_am
             if j < grid["ny"] - 1:
                 ry_list.append(_neighbor_resistance("y", grid, voxel_k, i, j, k, i, j + 1, k))
 
+        # Z-direction boundaries
         if k == 0 or owner_box_idx[_idx(i, j, k - 1, grid)] != bi:
             if k > 0:
                 rz_list.append(_neighbor_resistance("z", grid, voxel_k, i, j, k, i, j, k - 1))
@@ -994,15 +1059,42 @@ def _collect_directional_face_resistances(grid, owner_box_idx, voxel_k, voxel_am
                 else:
                     rz_list.append(_boundary_ambient_resistance("top", grid, voxel_k, i, j, k, top_htc))
 
-    return _parallel_resistance(rx_list), _parallel_resistance(ry_list), _parallel_resistance(rz_list)
+    fallback_rx = None
+    fallback_ry = None
+    fallback_rz = None
+
+    if box is not None:
+        fb_rx, fb_ry, fb_rz = _box_directional_geometry_resistances(
+            box,
+            layer_map if layer_map is not None else {}
+        )
+        fallback_rx = fb_rx
+        fallback_ry = fb_ry
+        fallback_rz = fb_rz
+
+    rx = _parallel_resistance(rx_list, fallback=fallback_rx)
+    ry = _parallel_resistance(ry_list, fallback=fallback_ry)
+    rz = _parallel_resistance(rz_list, fallback=fallback_rz)
+
+    return rx, ry, rz
 
 
-def reduce_to_box_metrics(temperatures_c, grid, owner_box_idx, all_boxes, voxel_k, voxel_ambient_g, heatsink_obj):
+def reduce_to_box_metrics(
+    temperatures_c,
+    grid,
+    owner_box_idx,
+    all_boxes,
+    voxel_k,
+    voxel_ambient_g,
+    heatsink_obj,
+    layers=None,
+):
     voxels_by_box = {}
     for n, bi in enumerate(owner_box_idx):
         if bi >= 0:
             voxels_by_box.setdefault(int(bi), []).append(float(temperatures_c[n]))
 
+    layer_map = _build_layer_map(layers)
     result = {}
 
     for bi, box in enumerate(all_boxes):
@@ -1021,6 +1113,8 @@ def reduce_to_box_metrics(temperatures_c, grid, owner_box_idx, all_boxes, voxel_
             voxel_ambient_g=voxel_ambient_g,
             heatsink_obj=heatsink_obj,
             bi=bi,
+            box=box,
+            layer_map=layer_map,
         )
 
         result[getattr(box, "name", "box_{}".format(bi))] = (peak_t, avg_t, rx, ry, rz)
@@ -1074,8 +1168,9 @@ def _append_summary_csv(summary_row, out_csv_path):
         "grid_nz",
         "nvox",
         "total_power_w",
-        "runtime_build_no_pyspice_s",
-        "runtime_pyspice_s",
+        "solver_backend",
+        "runtime_build_no_backend_s",
+        "runtime_backend_s",
         "runtime_total_s",
         "gpu_box",
         "gpu_peak_c",
@@ -1217,17 +1312,20 @@ def solve_thermal(
         voxel_k=voxel_k,
         voxel_ambient_g=voxel_ambient_g,
         heatsink_obj=heatsink_obj,
+        layers=layers,
     )
 
     t_end = time.time()
 
-    runtime_build_no_pyspice_s = (t_before_pyspice - t0) + (t_end - t_after_pyspice)
-    runtime_pyspice_s = (t_after_pyspice - t_before_pyspice)
+    runtime_build_no_backend_s = (t_before_pyspice - t0) + (t_end - t_after_pyspice)
+    runtime_backend_s = (t_after_pyspice - t_before_pyspice)
     runtime_total_s = (t_end - t0)
 
-    print("[thermal_solver] runtime excluding PySpice solve: {:.6f} s".format(runtime_build_no_pyspice_s))
-    print("[thermal_solver] runtime PySpice solve only:    {:.6f} s".format(runtime_pyspice_s))
-    print("[thermal_solver] runtime total solver:          {:.6f} s".format(runtime_total_s))
+    backend_name = "PySpice" if use_pyspice else "SciPy-CG"
+
+    print("[thermal_solver] runtime excluding {} solve: {:.6f} s".format(backend_name, runtime_build_no_backend_s))
+    print("[thermal_solver] runtime {} solve only:    {:.6f} s".format(backend_name, runtime_backend_s))
+    print("[thermal_solver] runtime total solver:     {:.6f} s".format(runtime_total_s))
 
     _print_temperature_summary(results)
 
@@ -1240,8 +1338,9 @@ def solve_thermal(
         "grid_nz": grid["nz"],
         "nvox": grid["nvox"],
         "total_power_w": total_power,
-        "runtime_build_no_pyspice_s": runtime_build_no_pyspice_s,
-        "runtime_pyspice_s": runtime_pyspice_s,
+        "solver_backend": "PySpice" if use_pyspice else "SciPy-CG",
+        "runtime_build_no_backend_s": runtime_build_no_backend_s,
+        "runtime_backend_s": runtime_backend_s,
         "runtime_total_s": runtime_total_s,
         "gpu_box": summary["gpu_box"],
         "gpu_peak_c": summary["gpu_peak_c"],
