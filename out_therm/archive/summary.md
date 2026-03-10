@@ -1,5 +1,0 @@
-| project | hottest_box | hottest_peak_C | overall_avg_peak_C | gpu_peak_C | hbm_peak_C | num_boxes |
-| --- | --- | --- | --- | --- | --- | --- |
-| ECTC_2p5D_1GPU_8high_110325_higherHTC | Power_Source | 90.68169798247199 | 82.38065531418995 | 90.44362896867536 | 82.68467815824899 | 57 |
-| ECTC_3D_1GPU_8high_110325_higherHTC | Power_Source | 118.83888502373229 | 116.28117909414667 | 118.08256679279827 | 116.81943231958269 | 61 |
-| ECTC_3D_1GPU_8high_120125_higherHTC | Power_Source | 117.89224964396603 | 116.0328958848112 | 115.49227670386347 | 116.19065439000826 | 61 |
