@@ -47,8 +47,18 @@ copy_dir() {
   fi
 }
 
-for d in configs scripts setup output; do
+for d in configs setup output; do
   copy_dir "$d"
+done
+
+# Only the run scripts + summarize script from scripts/
+mkdir -p "$SUBMIT_DIR/scripts"
+for f in run_all.sh run_config1_3D_gpu_top.sh run_config2_3D_gpu_bottom.sh run_config3_2p5D.sh summarize_all.sh; do
+  if [[ -f "$ROOT_DIR/scripts/$f" ]]; then
+    cp "$ROOT_DIR/scripts/$f" "$SUBMIT_DIR/scripts/"
+  else
+    echo "[WARN] Missing expected script: scripts/$f" >&2
+  fi
 done
 
 # Pull report/slides from lab_files if present; place beside therm.py

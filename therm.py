@@ -28,6 +28,9 @@ from therm_xml_parser import *
 from bonding_xml_parser import *
 from heatsink_xml_parser import *
 
+# Project power defaults (per Piazza gotcha: use 270 W GPU, not 400 W).
+GPU_DEFAULT_POWER_W = 270.0
+
 sns.set()
 
 # TODO: PROJECT - These constants affect chiplet placement overlap checking.
@@ -599,6 +602,15 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     2.5D configurations.
     """
     chiplet_tree = parse_all_chiplets(therm_conf)
+
+    # Override GPU power to the course-approved 270 W so it is explicit here
+    # (the XML already carries this value, but we set it to make the choice visible).
+    def _override_gpu_power(tree):
+        for ch in tree:
+            if ch.get_chiplet_type() == "GPU":
+                ch.set_power(GPU_DEFAULT_POWER_W)
+            _override_gpu_power(ch.get_child_chiplets())
+    _override_gpu_power(chiplet_tree)
     (w_top, l_top) = recursive_chiplet_sizing(chiplet_tree[0], None)
 
     def generate_placements_from_floorplan(floorplan, floorplan_dict, chiplet_tree):
