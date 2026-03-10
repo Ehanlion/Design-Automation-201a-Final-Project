@@ -60,3 +60,27 @@ Answer: There is no isolator insertion optimization any more. We simplified the 
  insertion. Your FoM will be some function of accuracy  (a measure of your thermal map) and runtime.
 
 You should also be able to check your solution against the group truth thermal map, which they will provide but we will not have for this project to check with ourselves.
+
+## PySpice and ngspice requirements
+
+pyspice repo: https://github.com/PySpice-org/PySpice
+
+Question: I had to jump through many hoops to get NgSpice running locally, and when I finally did it and ran the simulator with PySpice it gave me the same result as my local RC solver except it was nearly 5x slower.
+
+I wanted to clarify if it is an absolute requirement that we use PySpice or if we are allowed to use our own local RC solver (at our own risk). Even when using PySpice, therm.py can still look somewhat different depending on how ngspice is set up and imported so that PySpice can locate it properly.
+
+Answer: Report and submit code with runtimes and results for both, we will consider PySPICE.
+
+Question 2: I initially implemented my own RC solver to debug and validate the thermal network generation flow, since the original handout seemed to allow either PSpice or an RC solver. Based on the original project description, I have already completed the main requested components, including the thermal network construction, temperature extraction flow, and the originally described optimization work.
+
+After seeing the Piazza clarification, I want to confirm whether the final submission is expected to use PSpice/netlist-based solving, or whether a custom solver is still acceptable if the focus remains on meshing and thermal network construction.
+
+In addition, before seeing the clarification, I had already tested several isolator placements and identified one configuration that gave a clear temperature reduction. Should I still include that result in the final report, or should the isolator part be omitted entirely?
+
+Answer 2: We would expect all final submissions to use PSPICE. You can include the isolator results but they will not be considered for grading.
+
+Question 3: In the previous post @149 PySPICE was mentioned. On the actual project document it says PSPICE and I'm wondering exactly which one is wanted for us to use.
+
+Question 3.5: I was able to install and import PySpice successfully, but a test circuit of mine failed because libngspice.so is missing. I also checked and ngspice and xyce do not appear to be on PATH. Is there a class supported ngspice/xyce installation on eeapps we should use, or are we expected to build/install ngspice locally?
+
+Answer 3: Use ngspice locally. and the repo is GitHub - PySpice-org/PySpice: Simulate electronic circuit using Python and the Ngspice / Xyce simulators · GitHub => GitHub - PySpice-org/PySpice: Simulate electronic circuit using Python and the Ngspice / Xyce simulators · GitHub
