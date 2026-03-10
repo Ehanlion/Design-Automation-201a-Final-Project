@@ -34,7 +34,7 @@ See `docs/RUNNING_GUIDE.md` for detailed test commands, argument descriptions, a
 ## Repository Structure
 
 ```
-therm.py                    # Main script + simulator_simulate() stub (YOUR CODE HERE)
+therm.py                    # Main script + simulator_simulate() stub (OUR CODE HERE)
 therm_xml_parser.py         # XML parser: Chiplet, Layer, Assembly classes
 rearrange.py                # Box class, overlap checking, placement utilities
 bonding_xml_parser.py       # Bonding definitions parser
@@ -66,7 +66,19 @@ out_therm/                  # Output directory for plots (generated at runtime)
 
 ## Key Parameters
 
-- GPU power: 400 W
+- GPU power: **270 W** (per Piazza course-staff clarification — NOT the 400 W from the lab PDF; see `lab_files/lab-gotchas.md`)
 - HBM power: 5 W per stack
 - Heatsink: Water-cooled
 - HBM stack height: 8 dies
+
+## Thermal Solver
+
+The solver uses **PySpice** as the primary interface for building and solving the resistor network, per the project requirement:
+
+> "use Pyspice either as an API call or by dumping out netlist. I don't want how you solve a linear system of equations to be reason why your code is faster or slower!" — course staff (Piazza)
+
+Solver hierarchy (in priority order):
+1. **PySpice box-level resistor network** (primary): Builds a SPICE thermal circuit via `PySpice.Spice.Netlist.Circuit` (one thermal node per box), exports netlist to `out_therm/thermal_netlist.sp`, attempts ngspice operating-point simulation, then falls back to direct matrix solve from the same PySpice network topology.
+2. **3D voxel finite-difference** (fallback if PySpice import fails): scipy sparse CG or numpy SOR.
+
+The simulation is excluded from the figure-of-merit runtime. Only sizing + placement time is measured.
