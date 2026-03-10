@@ -15,7 +15,7 @@ from datetime import datetime
 
 try:
     from scipy import sparse
-    from scipy.sparse.linalg import spsolve
+    from scipy.sparse.linalg import cg, LinearOperator
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
@@ -878,11 +878,20 @@ def assemble_sparse_system(grid, voxel_k_w_mk, voxel_power_w, voxel_ambient_g=No
     return G, b
 
 
-def solve_steady_state(G, b):
+def solve_steady_state(G, b, tol=1e-8, maxiter=2000):
     if not HAS_SCIPY:
         raise RuntimeError("SciPy is required for the sparse thermal solve.")
 
-    T = spsolve(G, b)
+    diag = G.diagonal().copy()
+    diag[np.abs(diag) < EPS] = 1.0
+    M_inv = 1.0 / diag
+
+    M = sparse.linalg.LinearOperator(G.shape, matvec=lambda x: M_inv * x)
+    T, info = cg(G, b, M=M, tol=tol, maxiter=maxiter)
+
+    if info != 0:
+        print(f"[thermal_solver] WARNING: cg did not fully converge, info={info}")
+
     return np.asarray(T, dtype=float)
 
 
