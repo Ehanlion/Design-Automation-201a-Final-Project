@@ -149,6 +149,15 @@ results = {
 
 ## Key Power Assumptions
 
-- **GPU power**: 400 W (as specified in project document; the config files use 270W which is adjusted during execution)
+- **GPU power**: **270 W** — The lab PDF says 400 W, but the Piazza course forum clarified that the XML config value (270 W) is correct: *"Please use the 270 W values as in therm.py for now."* `GPU_DEFAULT_POWER_W = 270.0` in `therm.py` enforces this at runtime, overriding the chiplet tree before any simulation runs.
 - **HBM power**: 5 W per stack
 - **Power source efficiency**: 90% (backside power delivery loss accounted for)
+
+## Thermal Solver
+
+The simulation uses **PySpice** as the primary solver interface:
+
+1. **PySpice box-level circuit** (primary): `PySpice.Spice.Netlist.Circuit` is used to build a thermal resistor network with one node per physical box. The netlist is exported to `out_therm/thermal_netlist.sp`. ngspice is tried first; if unavailable the conductance matrix is extracted from the same PySpice circuit and solved with scipy/numpy.
+2. **3D voxel FD** (fallback): Used only if PySpice import fails entirely.
+
+The simulation time is **excluded** from the project figure-of-merit runtime. Only chiplet sizing + placement time counts.

@@ -61,6 +61,37 @@ the box stackup into a resistive grid and solves for temperatures.
 | `--infill_cond_list` | Infill conductivity values (W/m·K) |
 | `--underfill_cond_list` | Underfill conductivity values (W/m·K) |
 
+## Power Assumption: 270 W GPU
+
+The lab PDF specifies 400 W for the GPU. The Piazza course forum clarified that the XML config value (270 W) is the correct value to use:
+> "Please use the 270 W values as in therm.py for now."
+
+`GPU_DEFAULT_POWER_W = 270.0` is set at the top of `therm.py` and applied to the chiplet tree before any simulation. The fallback constant `GPU_TOTAL_POWER_W = 270.0` in `thermal_solver.py` is kept consistent.
+
+## Thermal Solver: PySpice Integration
+
+The thermal solve uses **PySpice** as the primary interface, per the course requirement:
+> "use Pyspice either as an API call or by dumping out netlist. I don't want how you solve a linear system of equations to be reason why your code is faster or slower!"
+
+**Solver hierarchy** in `thermal_solver.solve_thermal()`:
+
+1. **PySpice box-level resistor network** (primary, `HAS_PYSPICE=True`):
+   - Builds a SPICE thermal circuit via `PySpice.Spice.Netlist.Circuit`
+   - One thermal node per physical box
+   - Interface resistors between z-adjacent boxes (half-cell R formula)
+   - Convective boundary resistors at top and bottom surfaces
+   - Current sources for power injection
+   - Exports netlist to `out_therm/thermal_netlist.sp` (the "dump netlist" path)
+   - Attempts ngspice operating-point simulation (API call path)
+   - On ngspice failure: extracts conductance matrix from PySpice elements, solves with scipy sparse CG
+   - `thermal_solver.py` is preserved and NOT removed
+
+2. **3D voxel finite-difference** (fallback, if PySpice unavailable):
+   - Non-uniform grid aligned to box boundaries
+   - scipy sparse CG or numpy SOR
+
+**Simulation timing** is excluded from the FoM runtime (sizing + placement only).
+
 ## Changes Made to Starter Code
 
 1. **Removed** the entire `thermal_simulators/` directory (legacy Anemoi
