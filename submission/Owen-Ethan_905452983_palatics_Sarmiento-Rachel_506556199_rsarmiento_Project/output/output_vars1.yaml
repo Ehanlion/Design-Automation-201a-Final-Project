@@ -1,0 +1,11 @@
+core_area: 826.2
+core_power: 112.35
+mem_stacks: 6
+mem_tot_power: 72
+mem_tot_area: 415
+# dram_area = mem_tot_area / mem_stacks
+dram_area: 86.8644
+# dram_power = mem_tot_power / mem_stacks
+dram_power: 12
+small_area: 52
+small_power: 6
