@@ -1,7 +1,0 @@
-click
-matplotlib
-numpy
-seaborn
-scikit-learn
-sortedcontainers
-PyYAML
