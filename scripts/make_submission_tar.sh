@@ -16,7 +16,9 @@ echo "Creating submission directory: $SUBMIT_DIR"
 rm -rf "$SUBMIT_DIR"
 mkdir -p "$SUBMIT_DIR"
 
-# Core python files
+# ---------------------------------------------------------------------------
+# Core Python source files (no README, no data pickle)
+# ---------------------------------------------------------------------------
 PY_FILES=(
   therm.py
   thermal_solver.py
@@ -26,7 +28,6 @@ PY_FILES=(
   rearrange.py
   visualize_results.py
   summarize_results.py
-  README.md
 )
 
 for f in "${PY_FILES[@]}"; do
@@ -37,21 +38,31 @@ for f in "${PY_FILES[@]}"; do
   fi
 done
 
-# Required supporting dirs (structure preserved)
+# ---------------------------------------------------------------------------
+# Helper: copy a directory tree, skipping .pyc / __pycache__
+# ---------------------------------------------------------------------------
 copy_dir() {
   local d="$1"
+  local extra_excludes=("${@:2}")
   if [[ -d "$ROOT_DIR/$d" ]]; then
-    rsync -a --exclude='*.pyc' --exclude='__pycache__' "$ROOT_DIR/$d" "$SUBMIT_DIR/"
+    local rsync_args=(-a --exclude='*.pyc' --exclude='__pycache__')
+    for excl in "${extra_excludes[@]}"; do
+      rsync_args+=(--exclude="$excl")
+    done
+    rsync "${rsync_args[@]}" "$ROOT_DIR/$d" "$SUBMIT_DIR/"
   else
     echo "[WARN] Missing expected dir: $d" >&2
   fi
 }
 
+# configs, setup, output (YAML vars)
 for d in configs setup output; do
   copy_dir "$d"
 done
 
-# Only the run scripts + summarize script from scripts/
+# ---------------------------------------------------------------------------
+# scripts/ — run scripts + tar script itself
+# ---------------------------------------------------------------------------
 mkdir -p "$SUBMIT_DIR/scripts"
 for f in run_all.sh run_config1_3D_gpu_top.sh run_config2_3D_gpu_bottom.sh run_config3_2p5D.sh summarize_all.sh; do
   if [[ -f "$ROOT_DIR/scripts/$f" ]]; then
@@ -61,15 +72,27 @@ for f in run_all.sh run_config1_3D_gpu_top.sh run_config2_3D_gpu_bottom.sh run_c
   fi
 done
 
-# Pull report/slides from lab_files if present; place beside therm.py
+# ---------------------------------------------------------------------------
+# Report PDF and Slides PPTX — look in lab_files/ first, then docs/
+# ---------------------------------------------------------------------------
 for asset in Report.pdf Slides.pptx; do
   if [[ -f "$ROOT_DIR/lab_files/$asset" ]]; then
     cp "$ROOT_DIR/lab_files/$asset" "$SUBMIT_DIR/"
+    echo "  Included $asset from lab_files/"
+  elif [[ -f "$ROOT_DIR/docs/$asset" ]]; then
+    cp "$ROOT_DIR/docs/$asset" "$SUBMIT_DIR/"
+    echo "  Included $asset from docs/"
   else
-    echo "[WARN] $asset not found in lab_files/. Add it before rerunning." >&2
+    echo "[WARN] $asset not found in lab_files/ or docs/. Add it before rerunning." >&2
   fi
 done
 
+# ---------------------------------------------------------------------------
+# Pack tarball
+# ---------------------------------------------------------------------------
+echo ""
 mkdir -p "$ROOT_DIR/submission"
 tar -czf "$ROOT_DIR/submission/$TAR_NAME" -C "$ROOT_DIR/submission" "$GROUP"
 echo "Tarball created: submission/$TAR_NAME"
+echo "Contents:"
+tar -tzf "$ROOT_DIR/submission/$TAR_NAME" | head -60
