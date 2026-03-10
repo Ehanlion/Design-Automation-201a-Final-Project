@@ -11,5 +11,8 @@ This should have:
 
 Then we should be outputting in format dump form the dict, this info for each run, to a uniquely named txt file.
 
-
+Then we also need the other files:
+- yaml file generated as output
+- 3d png files
+- standard png files
 
