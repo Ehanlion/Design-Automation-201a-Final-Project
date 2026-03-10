@@ -56,6 +56,7 @@ def simulator_simulate(
     target_dx_mm=2.0,
     target_dy_mm=2.0,
     target_dz_mm=0.25,
+    use_pyspice=False,
     verbose=False,
 ):
     """
@@ -89,6 +90,7 @@ def simulator_simulate(
         target_dx_mm=target_dx_mm,
         target_dy_mm=target_dy_mm,
         target_dz_mm=target_dz_mm,
+        use_pyspice=use_pyspice,
         verbose=verbose,
     )
 
@@ -109,28 +111,53 @@ class Pin:
         """Return True if this pin has been assigned to an edge."""
         return self.edge_name is not None
 
+def _box_plot_color(box):
+    """
+    Robust plotting color classification.
+
+    Fixes the old box.name[:-1].endswith('HBM') bug for hierarchical names like:
+    Power_Source.substrate.HBM#0.HBM_l1...
+    """
+    name_l = str(getattr(box, "name", "")).lower()
+
+    try:
+        ctype = str(box.chiplet_parent.get_chiplet_type()).lower()
+    except Exception:
+        ctype = ""
+
+    if "interposer" in name_l or ctype == "interposer":
+        return "black"
+    if "substrate" in name_l or ctype == "substrate":
+        return "black"
+    if "hbm" in name_l or "dram" in name_l or "hbm" in ctype:
+        return "blue"
+    if "gpu" in name_l or ctype == "gpu" or name_l.endswith("wafer"):
+        return "green"
+    return "red"
 
 def draw_fig(boxes, out_dir, out_name, limits):
     """
     Generate a 2-D top-down placement plot of chiplets on the substrate.
 
-    Colors boxes by type: interposer (black), HBM (blue), wafer (green), other (red).
+    Colors boxes by type: interposer/substrate (black), HBM (blue), GPU/wafer (green), other (red).
     Saves the figure to out_dir/out_name.png.
     """
     fig, ax = plt.subplots()
     ax.set_aspect('equal')
     for box in boxes:
-        if box.name.endswith("interposer"):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='black'))
-        elif box.name[:-1].endswith('HBM'):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='blue'))
-        elif box.name.endswith('wafer'):
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='green'))
-        else:
-            ax.add_patch(plt.Rectangle((box.start_x, box.start_y), box.width, box.length, fill=True,color='red'))
+        color = _box_plot_color(box)
+        ax.add_patch(
+            plt.Rectangle(
+                (box.start_x, box.start_y),
+                box.width,
+                box.length,
+                fill=True,
+                color=color
+            )
+        )
     plt.xlim(limits[0], limits[1])
-    plt.ylim(limits[2],limits[3])
-    plt.savefig(out_dir+'/'+out_name+'.png')
+    plt.ylim(limits[2], limits[3])
+    plt.savefig(out_dir + '/' + out_name + '.png')
     plt.close()
 
 def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
@@ -141,33 +168,30 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
     """
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    
+
     collections = []
 
     for box in boxes:
         x = [box.start_x, box.start_x + box.width, box.start_x + box.width, box.start_x, box.start_x]
         y = [box.start_y, box.start_y, box.start_y + box.length, box.start_y + box.length, box.start_y]
-        z = [box.start_z] * 5  # base z level
-        z_top = [box.start_z + box.height] * 5  # top z level
+        z = [box.start_z] * 5
+        z_top = [box.start_z + box.height] * 5
 
-        verts = [list(zip(x, y, z)),
-                 list(zip(x, y, z_top))]
+        verts = [
+            list(zip(x, y, z)),
+            list(zip(x, y, z_top))
+        ]
 
-        # Sides of the box
         for i in range(4):
-            verts.append([(x[i], y[i], z[i]), (x[i+1], y[i+1], z[i+1]), 
-                          (x[i+1], y[i+1], z_top[i+1]), (x[i], y[i], z_top[i])])
+            verts.append([
+                (x[i], y[i], z[i]),
+                (x[i + 1], y[i + 1], z[i + 1]),
+                (x[i + 1], y[i + 1], z_top[i + 1]),
+                (x[i], y[i], z_top[i])
+            ])
 
         zpos = box.start_x
-
-        if box.name.endswith('interposer'):
-            color = 'black'
-        elif box.name[:-1].endswith('HBM'):
-            color = 'blue'
-        elif box.name.endswith('wafer'):
-            color = 'green'
-        else:
-            color = 'red'
+        color = _box_plot_color(box)
 
         poly = Poly3DCollection(verts, facecolors=color, edgecolors='k', alpha=0.7)
         poly.set_sort_zpos(zpos)
@@ -175,12 +199,13 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
 
     for poly, box in collections:
         ax.add_collection3d(poly)
-    ax.set_xlim(limits[0], limits[1])
-    ax.set_ylim(limits[0], limits[1])
-    ax.set_zlim(limits[0], int(limits[1]//2))  
 
-    ax.view_init(elev=20, azim=30)  # Adjust the viewing angle
-    ax.dist = 1  # Decrease this value to zoom in
+    ax.set_xlim(limits[0], limits[1])
+    ax.set_ylim(limits[2], limits[3])
+    ax.set_zlim(0, max([b.end_z for b in boxes]) + 1.0)
+
+    ax.view_init(elev=20, azim=30)
+    ax.dist = 8
 
     plt.savefig(out_dir + '/' + out_name + '3D.png')
     plt.close()
@@ -346,18 +371,6 @@ def create_bonding(box_list, base_chiplet, bonding_dict, bonding_box_list):
             bonding_box_list.append(bonding_box)
 
         create_bonding(box_list, chiplet, bonding_dict, bonding_box_list)
-
-def recursively_lift_box(chiplet, box_list, height):
-    """
-    Recursively shift a chiplet and all its children upward by the given height.
-
-    Duplicate of the function above; both are used in different contexts.
-    """
-    box = chiplet.get_box_representation()
-    box.start_z = box.start_z + height
-    for child in chiplet.get_child_chiplets():
-        recursively_lift_box(child, box_list, height)
-    return
 
 
 def create_TIM_to_heatsink(box_list, material="TIM0p5", min_TIM_height=0.1, system_type=None):
@@ -1521,7 +1534,21 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
         height = round(height, 3) #CHECK: 3 decimal places. 
         
-        GPU_chiplet = Chiplet(name=deepest_node.get_name() + ".GPU", core_area=826.2, aspect_ratio= 0.787, fraction_memory=0.0, fraction_logic=1.0, fraction_analog=0.0, assembly_process="silicon_individual_bonding", stackup=stackup, power=270.0, floorplan="", floorplan_dict="", fake=False, height=height)
+        GPU_chiplet = Chiplet(
+            name=deepest_node.get_name() + ".GPU",
+            core_area=826.2,
+            aspect_ratio=0.787,
+            fraction_memory=0.0,
+            fraction_logic=1.0,
+            fraction_analog=0.0,
+            assembly_process="silicon_individual_bonding",
+            stackup=GPU_stackup,
+            power=270.0,
+            floorplan="",
+            floorplan_dict="",
+            fake=False,
+            height=height
+        )
         width = math.sqrt(GPU_chiplet.get_core_area() * GPU_chiplet.get_aspect_ratio())
         length = GPU_chiplet.get_core_area() / width
         GPU_box = Box(0.0,0.0,z_coord,width,length,GPU_chiplet.get_height(),GPU_chiplet.get_power(),GPU_chiplet.get_stackup(),0,GPU_chiplet.get_name())
@@ -1632,9 +1659,10 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             underfill_cond=float(underfill_cond_list[0]) if underfill_cond_list else None,
             project_name=project_name,
             summary_dir=os.path.join(out_dir, "summaries"),
-            target_dx_mm=1.5,
-            target_dy_mm=1.5,
-            target_dz_mm=0.20,
+            target_dx_mm=5.0,
+            target_dy_mm=5.0,
+            target_dz_mm=0.80,
+            use_pyspice=False,
             verbose=False,
         )
         
