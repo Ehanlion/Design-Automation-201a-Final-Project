@@ -168,9 +168,12 @@ def draw_fig_3D_zoom(boxes, out_dir, out_name, limits):
 
     for poly, box in collections:
         ax.add_collection3d(poly)
+    min_z = min(box.start_z for box in boxes)
+    max_z = max(box.end_z for box in boxes)
+    z_pad = max((max_z - min_z) * 0.05, 0.1)
     ax.set_xlim(limits[0], limits[1])
-    ax.set_ylim(limits[0], limits[1])
-    ax.set_zlim(limits[0], int(limits[1]//2))  
+    ax.set_ylim(limits[2], limits[3])
+    ax.set_zlim(min_z - z_pad, max_z + z_pad)
 
     ax.view_init(elev=20, azim=30)  # Adjust the viewing angle
     ax.dist = 1  # Decrease this value to zoom in
@@ -1375,13 +1378,14 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
     # dedeepyo : 28-Jan-2025 : Assigning recursive fake chiplet sizing.
     fake_chiplet_size_dict = {}
-    start_time = time.time()
-    print("Starting sizing at ", start_time)
+    sizing_start_time = time.time()
+    print("Starting sizing at ", sizing_start_time)
     boxes_unique = []
     determine_sizing_recursive(boxes_unique, None, chiplet_tree, 0.0, fake_chiplet_size_dict)
-    end_time = time.time()
-    print("Sizing done at ", end_time)
-    print("Time taken: ", end_time - start_time)
+    sizing_end_time = time.time()
+    sizing_runtime_s = sizing_end_time - sizing_start_time
+    print("Sizing done at ", sizing_end_time)
+    print("Sizing runtime (s): ", sizing_runtime_s)
     # time.sleep(5)
     # dedeepyo : 29-Jan-2025
     # print(fake_chiplet_size_dict)
@@ -1396,13 +1400,16 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     recursively_copy_chiplet_sizes(fake_chiplet_size_dict, chiplet_tree[0])
     # dedeepyo : 29-Jan-2025 #
 
-    start_time = time.time()
-    print("Starting placement at ", start_time)
+    placement_start_time = time.time()
+    print("Starting placement at ", placement_start_time)
     boxes = []
     determine_placements_recursive(boxes, None, chiplet_tree, 0.0)
-    end_time = time.time()
-    print("Placement done at ", end_time)
-    print("Time taken: ", end_time - start_time)
+    placement_end_time = time.time()
+    placement_runtime_s = placement_end_time - placement_start_time
+    print("Placement done at ", placement_end_time)
+    print("Placement runtime (s): ", placement_runtime_s)
+    runtime_excluding_simulation_s = sizing_runtime_s + placement_runtime_s
+    print("Total runtime (excluding SPICE/simulation): ", runtime_excluding_simulation_s)
 
     # dedeepyo : 18-Nov-2024 : Implementing checker for fake chiplet.
     # If the chiplet is a fake chiplet, we need to remove it from the list of boxes.
@@ -1425,9 +1432,9 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
     # now, draw everything
     limits = determine_draw_lim(boxes)
-    out_name = project_name if project_name else "post"
-    draw_fig(boxes, out_dir, out_name, limits)
-    draw_fig_3D_zoom(boxes, out_dir, out_name, limits)
+    run_name = project_name if project_name else "post"
+    draw_fig(boxes, out_dir, run_name, limits)
+    draw_fig_3D_zoom(boxes, out_dir, run_name, limits)
     print("Placement finished, plots generated")
     # print(str(boxes))
     # return #TODO: Comment out later.
@@ -1615,8 +1622,10 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         )
         
         simulation_end_time = time.time()
+        simulation_runtime_s = simulation_end_time - simulation_start_time
         print("Simulation finished at ", simulation_end_time)
-        print("Time taken for simulation: ", simulation_end_time - simulation_start_time)
+        print("Simulation runtime (excluded from total runtime): ", simulation_runtime_s)
+        print("Total runtime (excluding SPICE/simulation): ", runtime_excluding_simulation_s)
 
         print("\n=== Simulation Results ===")
         for box_name, values in results.items():
@@ -1625,7 +1634,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         print("=========================\n")
 
         os.makedirs(out_dir, exist_ok=True)
-        yaml_output_path = os.path.join(out_dir, project_name + "_results.yaml")
+        yaml_output_path = os.path.join(out_dir, run_name + "_results.yaml")
+        txt_output_path = os.path.join(out_dir, run_name + "_results.txt")
 
         # Serialize results as plain lists so graders can parse with yaml.safe_load
         serializable_results = {
@@ -1635,6 +1645,23 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         with open(yaml_output_path, 'w') as f:
             yaml.safe_dump(serializable_results, f, default_flow_style=False)
         print(f"Results written to {yaml_output_path}")
+
+        # Mirror the per-box dictionary in plain-text form for quick grading checks.
+        with open(txt_output_path, "w") as f:
+            f.write(
+                "# tuple format: "
+                "(peak_temperature_C, average_temperature_C, "
+                "thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)\n"
+            )
+            f.write("results = {\n")
+            for name in sorted(serializable_results):
+                peak, avg, r_x, r_y, r_z = serializable_results[name]
+                f.write(
+                    f'    "{name}": '
+                    f"({peak:.6f}, {avg:.6f}, {r_x:.6f}, {r_y:.6f}, {r_z:.6f}),\n"
+                )
+            f.write("}\n")
+        print(f"Results written to {txt_output_path}")
 
         return
 
