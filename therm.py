@@ -527,12 +527,16 @@ def calculate_GPU_HBM_HTC(box_list, power_dict, hc):
     """
     Compute per-chiplet-type heat transfer coefficients for GPU vs HBM.
 
-    Returns (GPU_HTC, HBM_HTC) in W/(m^2·K). Currently returns fixed values.
+    Returns (GPU_HTC, HBM_HTC) in W/(m^2·K).
+
+    To avoid hidden calibration constants, multi-heatsink mode uses the
+    heatsink definition HTC directly unless a future physics model is added.
     """
-    # Assumption that we already have temperature data with default HTC hc. We use those temperatures to calculate the individual HTC for GPU and HBM.
-    GPU_HTC = 15236.73003 # hc
-    HBM_HTC = 2729.690335 # hc
-    return GPU_HTC, HBM_HTC
+    try:
+        base_hc = float(hc)
+    except (TypeError, ValueError):
+        base_hc = 0.0
+    return base_hc, base_hc
 
 def create_multiple_heat_sinks(
     box_list, heatsink_list, heatsink_name, power_dict, min_TIM_height=0.01
@@ -553,6 +557,8 @@ def create_multiple_heat_sinks(
     material = heatsinks[0].get_material()
     fin_number = heatsinks[0].get_fin_count()
     hc = heatsinks[0].get_hc()
+    fluid_speed = heatsinks[0].get_fluid_speed()
+    cooled_by = heatsinks[0].get_cooled_by()
     fin_offset = heatsinks[0].get_fin_offset()
     dz = heatsinks[0].get_base_thickness()
     bind_to_ambient = heatsinks[0].get_bind_to_ambient()
@@ -578,17 +584,22 @@ def create_multiple_heat_sinks(
     power_dict.update(HTC_dict)
     heatsink_data_list = []
     chiplet_HTC = {
-        "GPU": "GPU_HTC",
-        "HBM": "HBM_HTC"
+        "GPU": GPU_HTC,
+        "HBM": HBM_HTC,
     }
     box_list_top = []
     for box in box_list:
         if(box.chiplet_parent.get_child_chiplets() == []):
             box_list_top.append(box)
     for box in box_list_top:
-        chiplet_type = box.chiplet_parent.get_chiplet_type()[0:3]
-        hc = chiplet_HTC.get(chiplet_type, None)
-        if hc is not None:
+        chiplet_type = box.chiplet_parent.get_chiplet_type()
+        if chiplet_type.startswith("GPU"):
+            local_hc = chiplet_HTC["GPU"]
+        elif chiplet_type.startswith("HBM"):
+            local_hc = chiplet_HTC["HBM"]
+        else:
+            local_hc = None
+        if local_hc is not None:
             x = box.start_x
             y = box.start_y
             dx = box.width
@@ -607,8 +618,10 @@ def create_multiple_heat_sinks(
                 "fin_thickness": str(fin_thickness),
                 "fin_count": str(fin_number),
                 "fin_axis": "Y",
-                "hc": str(hc),
-                "bound": bind_to_ambient
+                "hc": str(local_hc),
+                "bound": bind_to_ambient,
+                "fluid_speed": str(fluid_speed),
+                "cooled_by": str(cooled_by),
             }
             heatsink_data_list.append(heatsink_data)
     
@@ -668,6 +681,8 @@ def create_heat_sink(
     material = heatsinks[0].get_material()
     fin_number = heatsinks[0].get_fin_count()
     hc = heatsinks[0].get_hc()
+    fluid_speed = heatsinks[0].get_fluid_speed()
+    cooled_by = heatsinks[0].get_cooled_by()
     fin_offset = heatsinks[0].get_fin_offset()
     dz = heatsinks[0].get_base_thickness()
     bind_to_ambient = heatsinks[0].get_bind_to_ambient()
@@ -691,7 +706,9 @@ def create_heat_sink(
         "fin_count": str(fin_number),
         "fin_axis": "Y",
         "hc": str(hc),
-        "bound": bind_to_ambient
+        "bound": bind_to_ambient,
+        "fluid_speed": str(fluid_speed),
+        "cooled_by": str(cooled_by),
     }
     return heatsink_data
 

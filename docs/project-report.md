@@ -35,9 +35,9 @@ This submission was updated to match **Final Project v4**:
   - TIM boxes
   - heatsink base
 - Grid is generated from sorted boundary edges and subdivided with resolution limits (`build_grid` in `thermal_solver.py`).
-- Current tuned defaults for the reference case:
-  - `max_xy = 3.0 mm`
-  - `max_z = 0.5 mm`
+- Current defaults:
+  - `max_xy = 2.0 mm`
+  - `max_z = 0.3 mm`
   - `min_s = 0.001 mm`
 
 ### 3.2 Voxel thermal resistance model
@@ -50,8 +50,10 @@ For each voxel, conductance links in `x/y/z` are built from half-cell series res
 Boundary conditions:
 
 - Top boundary uses convection via heatsink `hc`.
-- Effective top convection uses calibrated scaling:
-  - `hc_effective = hc_raw * (5400/7000)`
+- For water-cooled cases, effective `hc` is estimated algorithmically from
+  forced-convection Nusselt correlation (`Nu_L`) with water properties near 45 C.
+  - Laminar branch uses the constant-heat-flux average plate form.
+  - XML `hc` is treated as an upper bound (no manual scaling factors).
 - Bottom boundary uses `H_BOTTOM`.
 - Ambient reference is 45 C.
 
@@ -79,11 +81,13 @@ Compared per box:
 
 - Peak temperature MAE / RMSE / max-abs error
 - Average temperature MAE / RMSE / max-abs error
-- **Variance match**:
-  - `var(our_peak) / var(golden_peak)`
-  - `var(our_avg) / var(golden_avg)`
+- Percentage scores (`100%` = perfect):
+  - `peak_mae_pct`, `peak_rmse_pct`, `peak_max_abs_pct`
+  - `avg_mae_pct`, `avg_rmse_pct`, `avg_max_abs_pct`
+  - Variance percentage (requested): `var(golden)/var(ours) * 100`
+  - Symmetric variance match percentage: `min(var(golden)/var(ours), var(ours)/var(golden)) * 100`
 
-The variance ratios explicitly track the v4 grading guidance on matching result variance vs NGSpice/golden.
+The percentage metrics keep the same correctness information while making comparison easier to read.
 
 ### 5.2 Current reference-case numbers
 
@@ -91,10 +95,18 @@ Reference case: `ECTC_3D_1GPU_8high_110325_higherHTC`
 Source: `out_therm/golden_comparison.csv`
 
 - Matched boxes: `61/61`
-- Peak MAE: `0.3906 C`
-- Avg MAE: `0.4305 C`
-- Peak RMSE: `0.5028 C`
-- Avg RMSE: `0.5362 C`
+- Peak MAE: `0.2714 C`
+- Avg MAE: `0.2505 C`
+- Peak RMSE: `0.3547 C`
+- Avg RMSE: `0.3844 C`
+- Peak MAE score: `71.43%`
+- Avg MAE score: `76.13%`
+- Peak RMSE score: `65.67%`
+- Avg RMSE score: `67.53%`
+- Peak max-abs score: `36.06%`
+- Avg max-abs score: `34.69%`
+- Peak variance `%` (`var(golden)/var(ours)*100`): `67.32%`
+- Avg variance `%` (`var(golden)/var(ours)*100`): `97.90%`
 
 These are produced algorithmically by the solver and comparison scripts; no output values are hardcoded from golden.
 
@@ -106,8 +118,8 @@ Runtime is split into:
 2. **Thermal simulation runtime** (reported separately)
 
 This matches the requested grading emphasis on runtime while keeping solver time explicit.
-For `ECTC_3D_1GPU_8high_110325_higherHTC`, current simulation runtime is about `0.08 s`
-with the tuned voxel grid parameters.
+For `ECTC_3D_1GPU_8high_110325_higherHTC`, current simulation runtime is about `12.6 s`
+with the physics-only solver settings above.
 
 ## 7. Reproducible Flow
 

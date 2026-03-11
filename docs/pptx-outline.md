@@ -35,9 +35,9 @@ Visuals:
 - Driver: `therm.py`
 - Main solve path for v4 outputs:
   - voxel RC solve with center-plane power assignment
-- Tuned runtime/accuracy settings (reference case):
-  - grid: `max_xy=3.0 mm`, `max_z=0.5 mm`
-  - effective convection: `hc_eff = hc_raw * (5400/7000)`
+- Physics-only runtime/accuracy settings:
+  - grid: `max_xy=2.0 mm`, `max_z=0.3 mm`
+  - water-cooled `hc_eff` from Nusselt correlation (`Nu_L`), capped by XML `hc`
 - Runtime reported as two numbers:
   1. placement/sizing runtime (grading runtime focus)
   2. simulation runtime (reported separately)
@@ -51,10 +51,10 @@ Visuals:
 
 - Compare against `solutions/golden_output_results.txt`
 - Report:
-  - peak/avg MAE
-  - peak/avg RMSE
-  - max absolute error
-  - **variance match ratio** (our variance / golden variance)
+  - peak/avg MAE and RMSE (C)
+  - percentage scores (`100%` = perfect) for MAE/RMSE/max-abs
+  - **variance %**: `var(golden)/var(ours) * 100`
+  - optional bounded variance match `%`: `min(g/o, o/g) * 100`
 - Why variance is shown:
   - v4 grading emphasizes closeness of result variance to NGSpice/golden
 
@@ -66,17 +66,21 @@ Visuals:
 
 - Current reference-case summary (from `out_therm/golden_comparison.csv`)
   - matched boxes: 61/61
-  - peak MAE: 0.39 C
-  - avg MAE: 0.43 C
-  - peak/avg RMSE: 0.50 C / 0.54 C
-  - simulation runtime: ~0.08 s
+  - peak/avg MAE: 0.27 C / 0.25 C
+  - peak/avg RMSE: 0.35 C / 0.38 C
+  - MAE score (peak/avg): 71.43% / 76.13%
+  - RMSE score (peak/avg): 65.67% / 67.53%
+  - max-abs score (peak/avg): 36.06% / 34.69%
+  - simulation runtime: ~12.6 s
+  - variance % `var(golden)/var(ours)` (peak/avg): 67.32% / 97.90%
 - Confirmed constraints:
   - no hardcoded golden outputs
+  - no calibration scale-factor knobs
   - no interposer insertion beyond config-defined geometry
 - Planned tuning:
-  1. convection boundary calibration
-  2. material parameter sensitivity
-  3. grid refinement/runtime trade-off
+  1. mesh-convergence study for final runtime/accuracy operating point
+  2. sensitivity sweep on TIM/infill conductivity
+  3. extend same no-fudge method to 2.5D and 12-high cases
 
 Visuals:
 - Final summary table + one short “next actions” list
