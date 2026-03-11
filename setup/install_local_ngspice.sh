@@ -146,7 +146,8 @@ find "$NGSPICE_SRC_DIR" -name "Makefile.in" -exec touch {} +
 mkdir -p "$NGSPICE_BUILD_DIR"
 
 echo "--- Configuring ---"
-(
+echo "    log: $NGSPICE_BUILD_DIR/configure.log"
+if ! (
     cd "$NGSPICE_SRC_DIR"
     ./configure \
         --prefix="$NGSPICE_INSTALL_ROOT" \
@@ -156,8 +157,12 @@ echo "--- Configuring ---"
         --enable-cider \
         --disable-maintainer-mode \
         --disable-dependency-tracking \
-        2>&1 | tee "$NGSPICE_BUILD_DIR/configure.log"
-)
+        > "$NGSPICE_BUILD_DIR/configure.log" 2>&1
+); then
+    echo "ERROR: ngspice configure failed. Last 40 lines from $NGSPICE_BUILD_DIR/configure.log:"
+    tail -n 40 "$NGSPICE_BUILD_DIR/configure.log" || true
+    exit 1
+fi
 
 MAKE_JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 echo "--- Building (jobs: $MAKE_JOBS) ---"
