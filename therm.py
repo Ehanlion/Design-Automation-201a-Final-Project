@@ -58,6 +58,7 @@ from heatsink_xml_parser import *
 # The XML configs carry this as core_power=270; we override explicitly below
 # so the value is unambiguous regardless of XML content.
 GPU_DEFAULT_POWER_W = 270.0
+POWER_SOURCE_POWER_W = 0.0
 
 sns.set()
 
@@ -112,6 +113,8 @@ def simulator_simulate(
     """
     from thermal_solver import solve_thermal
 
+    # Final Project v4 requires GPU/HBM power injection on each die's center
+    # z-plane; this is resolved by the voxel solver path.
     return solve_thermal(
         boxes,
         bonding_box_list,
@@ -121,6 +124,8 @@ def simulator_simulate(
         tim_cond=tim_cond,
         infill_cond=infill_cond,
         underfill_cond=underfill_cond,
+        force_voxel=True,
+        use_center_plane_power=True,
     )
 
 
@@ -357,18 +362,14 @@ def recursively_lift_box(chiplet, box_list, height):
 
 def create_power_source_backside(boxes, efficiency=0.9):
     """
-    Set power for the backside power delivery source based on total system power.
+    Set backside Power_Source power.
 
-    The power source dissipates (1-efficiency)*total_power/efficiency to model
-    conversion losses. Assumes exactly one Power_Source box exists.
+    Project v4 requires Power_Source consumption to be 0 W.
     """
-    total_power = 0
     for box in boxes:
-        total_power += box.power
-    
-    ps = [box for box in boxes if box.chiplet_parent.get_chiplet_type() == "Power_Source"][0] # Assuming only one power source. For now, it is at bottom. backside power delivery.
-    ps.power = (1 - efficiency) * total_power / efficiency
-    ps.chiplet_parent.set_power(ps.power)
+        if box.chiplet_parent.get_chiplet_type() == "Power_Source":
+            box.power = POWER_SOURCE_POWER_W
+            box.chiplet_parent.set_power(POWER_SOURCE_POWER_W)
 
 
 def calculate_ratio(bonding, box):
@@ -751,6 +752,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         for ch in tree:
             if ch.get_chiplet_type() == "GPU":
                 ch.set_power(GPU_DEFAULT_POWER_W)
+            elif ch.get_chiplet_type() == "Power_Source":
+                ch.set_power(POWER_SOURCE_POWER_W)
             _override_gpu_power(ch.get_child_chiplets())
     _override_gpu_power(chiplet_tree)
     (w_top, l_top) = recursive_chiplet_sizing(chiplet_tree[0], None)
@@ -1698,7 +1701,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     bonding_box_list = create_all_bonding(box_list = boxes, name_type_dict = bonding_name_type_dict, bonding_list = bonding_list) #        
     TIM_boxes = create_TIM_to_heatsink(box_list = boxes, material = "TIM0p5", min_TIM_height = min_TIM_height, system_type = system_type)
     heatsink_obj = create_heat_sink(box_list = boxes, heatsink_list = heatsink_list, heatsink_name = heatsink_name, min_TIM_height = min_TIM_height, scale_factor_x = 0, scale_factor_y = 0, area_scale_factor = 1)
-    create_power_source_backside(boxes) #
+    # Project v4: keep Power_Source at 0 W.
+    create_power_source_backside(boxes)
     power_dict = initialize_power_dict_values(boxes)
 
     # print("After creating bonding, TIM and heatsink:")
@@ -1869,11 +1873,8 @@ def HBM_throttled_power(
     
 def update_power_source_backside(boxes, power_dict, efficiency=0.9):
     """
-    Update power source dissipation based on power_dict and chiplet types.
-
-    Sums power from all non-Power_Source boxes and sets Power_Source loss.
+    Update chiplet powers from power_dict and keep Power_Source at 0 W (v4).
     """
-    total_power = 0
     for box in boxes:
         if(box.chiplet_parent.get_chiplet_type() != "Power_Source"):
             if(box.chiplet_parent.get_chiplet_type()[0:5] == "HBM_l"):
@@ -1884,19 +1885,16 @@ def update_power_source_backside(boxes, power_dict, efficiency=0.9):
                 box.power = power_dict["GPU"]
             elif(box.power > 0.00):
                 print(f"Chiplet type: {box.chiplet_parent.get_chiplet_type()} has power {box.power}W\n")
-
-            total_power += box.power
-    
-    ps = [box for box in boxes if box.chiplet_parent.get_chiplet_type() == "Power_Source"][0] # Assuming only one power source. For now, it is at bottom. backside power delivery.
-    ps.power = (1 - efficiency) * total_power / efficiency
-    ps.chiplet_parent.set_power(ps.power)
-    return ps.power
+        else:
+            box.power = POWER_SOURCE_POWER_W
+            box.chiplet_parent.set_power(POWER_SOURCE_POWER_W)
+    return POWER_SOURCE_POWER_W
 
 def initialize_power_dict_values(boxes):
     """
-    Build power_dict mapping chiplet types (GPU, HBM, HBM_l, Power_Source) to power values.
+    Build power_dict mapping chiplet types (GPU, HBM, HBM_l) to power values.
 
-    Used when power_dict is needed for simulation or calibration.
+    Project v4 sets Power_Source power to 0 W, so it is intentionally omitted.
     """
     power_dict = {}
     for box in boxes: # Assuming all boxes of a particular type have same power.
@@ -1906,8 +1904,6 @@ def initialize_power_dict_values(boxes):
             power_dict["HBM"] = box.power
         elif(box.chiplet_parent.get_chiplet_type()[0:5] == "HBM_l"):
             power_dict["HBM_l"] = box.power
-        elif(box.chiplet_parent.get_chiplet_type() == "Power_Source"):
-            power_dict["Power_Source"] = box.power
     return power_dict
 
 def read_data(filename):
