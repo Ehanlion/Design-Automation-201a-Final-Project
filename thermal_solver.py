@@ -3,23 +3,18 @@
 
 Two solver approaches are available, tried in order:
 
-  1. PySpice box-level resistor network (PRIMARY)
-     - Builds a SPICE thermal circuit with one node per physical box using
-       the PySpice API (PySpice.Spice.Netlist.Circuit).
-     - Exports the SPICE netlist to out_therm/thermal_netlist.sp for inspection.
-     - Attempts ngspice operating-point simulation via PySpice.
-     - If ngspice is unavailable, falls back to a direct matrix solve built
-       from the SAME PySpice circuit element list (conductances and powers
-       are extracted from the PySpice circuit and solved with scipy or numpy).
-     - This satisfies the project requirement to use PySpice either as an API
-       call (ngspice path) or by dumping out a netlist and solving the linear
-       system (fallback matrix path).
+  1. Voxel thermal RC network (PRIMARY for final-project runs)
+     - Builds a non-uniform 3D voxel mesh aligned to package boundaries.
+     - Assigns anisotropic per-voxel conductivities from the layer stackup.
+     - Deposits GPU/HBM power on the center z-plane of each powered die/tier.
+     - Exports the full meshed RC netlist to out_therm/thermal_netlist.sp.
+     - Solves the RC netlist with the project-local ngspice binary first.
+     - Falls back to scipy sparse CG (or numpy SOR) only if ngspice fails.
 
-  2. 3D voxel finite-difference (FALLBACK if PySpice import fails entirely)
-     - Non-uniform grid aligned to chiplet/bonding/TIM/heatsink boundaries.
-     - Assigns per-voxel conductivities from layer stackup definitions.
-     - Distributes power uniformly within each powered voxel.
-     - Scipy sparse CG solver (or numpy SOR as further fallback).
+  2. PySpice box-level resistor network (LEGACY / non-voxel path)
+     - Builds a coarse one-node-per-box SPICE network using the PySpice API.
+     - Attempts ngspice operating-point simulation via PySpice/local netlist.
+     - Falls back to a direct matrix solve from the same box-level topology.
 
 POWER ASSUMPTION — 270 W GPU (NOT 400 W):
   The project PDF states 400 W for the GPU. However, the Piazza course forum
@@ -51,9 +46,8 @@ try:
 except ImportError:
     HAS_SCIPY = False
 
-# PySpice is the PRIMARY solver interface (API call + netlist export).
-# We fall back to direct matrix assembly if PySpice is not installed or if
-# ngspice is unavailable at runtime.
+# PySpice support is kept for the legacy box-level network path.
+# Final-project runs use the voxel RC netlist + local ngspice path first.
 HAS_PYSPICE = False
 try:
     from PySpice.Spice.Netlist import Circuit as _PySpiceCircuit
@@ -97,8 +91,9 @@ GPU_TOTAL_POWER_W = 270.0   # was 400.0 in starter code; corrected to 270 W
 HBM_STACK_POWER_W = 5.0
 H_BOTTOM = 10.0             # bottom convection coefficient W/(m²·K)
 
-# Default path for exported SPICE netlist
+# Default paths for exported SPICE netlists
 NETLIST_EXPORT_PATH = os.path.join("out_therm", "thermal_netlist.sp")
+BOX_NETLIST_EXPORT_PATH = os.path.join("out_therm", "thermal_box_netlist.sp")
 
 
 def _env_flag(name, default=False):
@@ -129,6 +124,8 @@ USE_CENTER_Z_PLANE_POWER_DEFAULT = _env_flag(
 GRID_MAX_XY_MM = _env_float("EE201A_GRID_MAX_XY_MM", 2.0)
 GRID_MAX_Z_MM = _env_float("EE201A_GRID_MAX_Z_MM", 0.3)
 GRID_MIN_MM = _env_float("EE201A_GRID_MIN_MM", 0.001)
+NGSPICE_TIMEOUT_S = _env_float("EE201A_NGSPICE_TIMEOUT_S", 600.0)
+NGSPICE_PRINT_CHUNK = 64
 
 
 def _estimate_convective_hc(heatsink_obj, hc_raw):
@@ -380,7 +377,7 @@ def _box_R(box, lm):
 
 
 # ============================================================================
-# PySpice Box-Level Thermal Solver (PRIMARY SOLVER)
+# PySpice Box-Level Thermal Solver (LEGACY / NON-VOXEL PATH)
 # ============================================================================
 #
 # Thermal-to-electrical analogy:
@@ -538,25 +535,44 @@ def _build_pyspice_circuit(all_boxes, node_map, G_pairs, P_vec, G_conv):
     if not HAS_PYSPICE:
         return None
 
-    circuit = _PySpiceCircuit("ThermalResistorNetwork")
+    return _build_resistor_network_circuit(
+        "ThermalResistorNetwork",
+        len(node_map),
+        G_pairs,
+        P_vec,
+        G_conv,
+    )
 
-    # Interface resistors between adjacent box nodes
+
+def _network_node_name(index):
+    return f"nd{int(index)}"
+
+
+def _build_resistor_network_circuit(title, node_count, G_pairs, P_vec, G_ground):
+    """Build a generic thermal RC PySpice circuit from conductance data."""
+    if not HAS_PYSPICE:
+        return None
+
+    circuit = _PySpiceCircuit(title)
     for idx, (i, j, G) in enumerate(G_pairs):
-        R_val = 1.0 / G   # K/W = Ω in analogy
-        n1 = f"nd{i}"
-        n2 = f"nd{j}"
-        circuit.R(f"Rint{idx}", n1, n2, R_val)
+        if G <= 0:
+            continue
+        circuit.R(
+            f"Rint{idx}",
+            _network_node_name(i),
+            _network_node_name(j),
+            1.0 / G,
+        )
 
-    # Convective boundary resistors (node → ground = ambient)
-    for i, G in enumerate(G_conv):
+    for i in range(node_count):
+        G = float(G_ground[i])
         if G > 0:
-            R_conv = 1.0 / G
-            circuit.R(f"Rconv{i}", f"nd{i}", circuit.gnd, R_conv)
+            circuit.R(f"Rconv{i}", _network_node_name(i), circuit.gnd, 1.0 / G)
 
-    # Current sources for power injection (ground → node; current = power)
-    for i, P in enumerate(P_vec):
+    for i in range(node_count):
+        P = float(P_vec[i])
         if P > 0:
-            circuit.I(f"Ipwr{i}", circuit.gnd, f"nd{i}", P)
+            circuit.I(f"Ipwr{i}", circuit.gnd, _network_node_name(i), P)
 
     return circuit
 
@@ -572,7 +588,45 @@ def _export_pyspice_netlist(circuit, path=NETLIST_EXPORT_PATH):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w") as f:
             f.write(str(circuit))
-        print(f"  PySpice netlist exported → {path}")
+        print(f"  PySpice netlist exported -> {path}")
+    except Exception as e:
+        print(f"  Warning: could not export netlist: {e}")
+
+
+def _export_resistor_network_netlist(title, node_count, G_pairs, P_vec, G_ground,
+                                     path=NETLIST_EXPORT_PATH):
+    """
+    Export a generic resistor-network SPICE netlist.
+
+    This path is used by the voxel mesh so the meshed RC network is solved
+    directly by the local ngspice binary.
+    """
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w") as f:
+            f.write(f"* {title}\n")
+            f.write(".option klu\n")
+            for idx, (i, j, G) in enumerate(G_pairs):
+                if G <= 0:
+                    continue
+                f.write(
+                    f"RINT{idx} {_network_node_name(i)} {_network_node_name(j)} "
+                    f"{1.0 / G:.12e}\n"
+                )
+            for i in range(node_count):
+                G = float(G_ground[i])
+                if G > 0:
+                    f.write(
+                        f"RAMB{i} {_network_node_name(i)} 0 {1.0 / G:.12e}\n"
+                    )
+            for i in range(node_count):
+                P = float(P_vec[i])
+                if P > 0:
+                    f.write(
+                        f"IPWR{i} 0 {_network_node_name(i)} DC {P:.12e}\n"
+                    )
+            f.write(".end\n")
+        print(f"  RC netlist exported -> {path}")
     except Exception as e:
         print(f"  Warning: could not export netlist: {e}")
 
@@ -659,7 +713,7 @@ def _configure_ngspice_environment(ngspice_bin):
             )
 
 
-def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
+def _solve_ngspice_subprocess(netlist_path, node_names, ngspice_bin=None):
     """
     PRIMARY ngspice path — call the local ngspice binary directly via subprocess.
 
@@ -668,19 +722,24 @@ def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
       2. PySpice API          ← _solve_pyspice_ngspice
       3. Custom RC matrix     ← _solve_box_network_matrix
 
-    Reads the already-exported PySpice netlist, appends a .control block that
-    runs .op and prints all node voltages, then launches ngspice in batch mode.
+    Reads the already-exported RC netlist, appends a .control block that runs
+    .op and prints all node voltages, then launches ngspice in batch mode.
     Parses stdout for lines like "v(nd0) = 5.50000e+01".
 
     Returns dict {node_name: float voltage} on success, None on failure.
     """
-    import subprocess, tempfile, re
+    import shutil
+    import subprocess
+    import tempfile
+    import re
 
     ngspice_bin = ngspice_bin or _find_ngspice_binary()
     if ngspice_bin is None:
         print("  [ngspice-local] binary not found in PATH or common locations.")
         return None
 
+    tmp_dir = None
+    tmp_path = None
     try:
         with open(netlist_path, "r") as f:
             base_netlist = f.read()
@@ -688,17 +747,24 @@ def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
         # Remove any existing .end so we can append our .control block
         base_no_end = re.sub(r"(?im)^\s*\.end\s*$", "", base_netlist).rstrip()
 
-        # node_map maps physical box names -> integer indices. The SPICE netlist
-        # uses canonical node labels "nd{index}".
-        node_names = [f"nd{i}" for i in sorted(node_map.values())]
-        print_nodes = " ".join(f"v({n})" for n in node_names)
+        node_names = list(node_names)
+        tmp_dir = tempfile.mkdtemp(prefix="thermal_ngspice_")
+        out_specs = []
+        wrdata_lines = []
+        for chunk_id, start in enumerate(range(0, len(node_names), NGSPICE_PRINT_CHUNK)):
+            chunk_nodes = node_names[start:start + NGSPICE_PRINT_CHUNK]
+            chunk_path = os.path.join(tmp_dir, f"voltages_{chunk_id:04d}.dat")
+            vectors = " ".join(f"v({name})" for name in chunk_nodes)
+            wrdata_lines.append(f"wrdata {chunk_path} {vectors}\n")
+            out_specs.append((chunk_nodes, chunk_path))
 
         control_block = (
+            "\n.option klu\n"
             "\n.control\n"
+            "set filetype=ascii\n"
             "op\n"
-            f"print {print_nodes}\n"
-            ".endc\n"
-            ".end\n"
+            + "".join(wrdata_lines)
+            + ".endc\n.end\n"
         )
         full_netlist = base_no_end + control_block
 
@@ -713,28 +779,44 @@ def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            timeout=180,
+            timeout=NGSPICE_TIMEOUT_S,
         )
-
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
 
         combined = result.stdout + result.stderr
         voltages = {}
-        # ngspice batch output: "v(nd0)              =  5.50000e+01"
-        v_pattern = re.compile(
-            r"v\((nd\d+)\)\s*=\s*([-+]?\d+\.?\d*(?:[eE][-+]?\d+)?)"
-        )
-        for line in combined.splitlines():
-            m = v_pattern.search(line)
-            if m:
-                voltages[m.group(1)] = float(m.group(2))
 
+        for chunk_nodes, chunk_path in out_specs:
+            if not os.path.exists(chunk_path):
+                continue
+            try:
+                with open(chunk_path, "r") as f:
+                    raw = f.read().strip()
+            except OSError:
+                continue
+            if not raw:
+                continue
+            cols = raw.split()
+            values = cols[1::2]
+            if len(values) != len(chunk_nodes):
+                continue
+            for node_name, value in zip(chunk_nodes, values):
+                try:
+                    voltages[node_name] = float(value)
+                except ValueError:
+                    pass
+
+        if not voltages:
+            # Fallback parser for smaller runs or unexpected wrdata failures.
+            v_pattern = re.compile(
+                r"v\((nd\d+)\)\s*=\s*([-+]?\d+\.?\d*(?:[eE][-+]?\d+)?)"
+            )
+            for line in combined.splitlines():
+                m = v_pattern.search(line)
+                if m:
+                    voltages[m.group(1)] = float(m.group(2))
         if voltages:
             print(
-                f"  [ngspice-local] Parsed {len(voltages)}/{len(node_map)} node voltages."
+                f"  [ngspice-local] Parsed {len(voltages)}/{len(node_names)} node voltages."
             )
             return voltages
         else:
@@ -746,11 +828,19 @@ def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
             return None
 
     except subprocess.TimeoutExpired:
-        print("  [ngspice-local] ngspice timed out after 180 s.")
+        print(f"  [ngspice-local] ngspice timed out after {NGSPICE_TIMEOUT_S:.0f} s.")
         return None
     except Exception as e:
         print(f"  [ngspice-local] Failed: {type(e).__name__}: {e}")
         return None
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _solve_pyspice_ngspice(circuit, ngspice_bin=None):
@@ -848,7 +938,7 @@ def _solve_box_network_matrix(N, G_pairs, P_vec, G_conv):
 
 
 def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
-                           hc_top, netlist_path=NETLIST_EXPORT_PATH):
+                           hc_top, netlist_path=BOX_NETLIST_EXPORT_PATH):
     """
     Box-level thermal solve using PySpice for circuit construction.
 
@@ -904,7 +994,9 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     if HAS_PYSPICE and os.path.exists(netlist_path):
         print("  [Solver 1/3] Attempting local ngspice subprocess ...")
         ngspice_result = _solve_ngspice_subprocess(
-            netlist_path, node_map, ngspice_bin=ngspice_bin
+            netlist_path,
+            [_network_node_name(i) for i in range(N)],
+            ngspice_bin=ngspice_bin,
         )
 
     # -- Step 2: PySpice API (ngspice via PySpice interface) -----------------
@@ -1237,6 +1329,146 @@ def _build_system(kg, qg, xe, ye, ze, hc_top):
     return A, rhs.ravel(), diag.ravel()
 
 
+def _build_voxel_network_data(kg, qg, xe, ye, ze, hc_top):
+    """
+    Build the voxel thermal RC network in resistor-network form.
+
+    Returns
+    -------
+    tuple
+        (shape, G_pairs, P_vec, G_ground)
+    """
+    if isinstance(kg, tuple):
+        kxg, kyg, kzg = kg
+    else:
+        kxg = kyg = kzg = kg
+    nx, ny, nz = kxg.shape
+    N = nx * ny * nz
+    eps = 1e-15
+
+    dx = (xe[1:] - xe[:-1]) / 1000.0
+    dy = (ye[1:] - ye[:-1]) / 1000.0
+    dz = (ze[1:] - ze[:-1]) / 1000.0
+    ksx = np.maximum(kxg, eps)
+    ksy = np.maximum(kyg, eps)
+    ksz = np.maximum(kzg, eps)
+
+    Ax = dy[None, :, None] * dz[None, None, :]
+    Gx = 1.0 / np.maximum(
+        dx[:nx-1, None, None] / (2 * ksx[:nx-1] * Ax)
+        + dx[1:, None, None] / (2 * ksx[1:] * Ax),
+        eps,
+    )
+    Ay = dx[:, None, None] * dz[None, None, :]
+    Gy = 1.0 / np.maximum(
+        dy[None, :ny-1, None] / (2 * ksy[:, :ny-1] * Ay)
+        + dy[None, 1:, None] / (2 * ksy[:, 1:] * Ay),
+        eps,
+    )
+    Az = dx[:, None, None] * dy[None, :, None]
+    Gz = 1.0 / np.maximum(
+        dz[None, None, :nz-1] / (2 * ksz[:, :, :nz-1] * Az)
+        + dz[None, None, 1:] / (2 * ksz[:, :, 1:] * Az),
+        eps,
+    )
+
+    ci = (
+        np.arange(nx)[:, None, None] * (ny * nz)
+        + np.arange(ny)[None, :, None] * nz
+        + np.arange(nz)[None, None, :]
+    )
+
+    G_pairs = []
+    for left, right, gvals in (
+        (ci[:nx-1], ci[1:], Gx),
+        (ci[:, :ny-1], ci[:, 1:], Gy),
+        (ci[:, :, :nz-1], ci[:, :, 1:], Gz),
+    ):
+        G_pairs.extend(
+            zip(
+                left.ravel().astype(np.int64),
+                right.ravel().astype(np.int64),
+                gvals.ravel(),
+            )
+        )
+
+    cell_vol_mm3 = np.einsum(
+        "i,j,k->ijk",
+        dx * 1e3,
+        dy * 1e3,
+        dz * 1e3,
+    )
+    P_vec = (qg * cell_vol_mm3).ravel()
+
+    Af = dx[:, None] * dy[None, :]
+    G_top = 1.0 / np.maximum(
+        dz[-1] / (2 * ksz[:, :, -1] * Af) + 1.0 / (hc_top * Af + eps),
+        eps,
+    )
+    G_bottom = 1.0 / np.maximum(
+        dz[0] / (2 * ksz[:, :, 0] * Af) + 1.0 / (H_BOTTOM * Af + eps),
+        eps,
+    )
+
+    G_ground = np.zeros(N)
+    G_ground[ci[:, :, -1].ravel()] += G_top.ravel()
+    G_ground[ci[:, :, 0].ravel()] += G_bottom.ravel()
+
+    return (nx, ny, nz), G_pairs, P_vec, G_ground
+
+
+def _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_top,
+                         netlist_path=NETLIST_EXPORT_PATH):
+    """
+    Solve the meshed voxel RC network with the local ngspice binary.
+
+    Returns a temperature grid in degC on success, else None.
+    """
+    t_s = time.time()
+    shape, G_pairs, P_vec, G_ground = _build_voxel_network_data(
+        kg, qg, xe, ye, ze, hc_top
+    )
+    nx, ny, nz = shape
+    N = nx * ny * nz
+    powered = int(np.count_nonzero(P_vec > 0))
+    grounded = int(np.count_nonzero(G_ground > 0))
+    print(
+        f"    voxel RC network     ({time.time()-t_s:.2f}s)  "
+        f"N={N}  edges={len(G_pairs)}  powered={powered}  ambient={grounded}"
+    )
+
+    _export_resistor_network_netlist(
+        "VoxelThermalNetwork",
+        N,
+        G_pairs,
+        P_vec,
+        G_ground,
+        path=netlist_path,
+    )
+
+    ngspice_bin = _find_ngspice_binary()
+    _configure_ngspice_environment(ngspice_bin)
+    print(
+        "    ngspice binary       "
+        f"({time.time()-t_s:.2f}s)  {ngspice_bin if ngspice_bin else 'not found'}"
+    )
+    voltages = _solve_ngspice_subprocess(
+        netlist_path,
+        [_network_node_name(i) for i in range(N)],
+        ngspice_bin=ngspice_bin,
+    )
+    if voltages is None:
+        return None
+
+    T = np.full(N, AMBIENT_TEMP_C)
+    for i in range(N):
+        node_name = _network_node_name(i)
+        if node_name in voltages:
+            T[i] = voltages[node_name] + AMBIENT_TEMP_C
+    print(f"    ngspice solve done   ({time.time()-t_s:.2f}s)")
+    return T.reshape((nx, ny, nz))
+
+
 def _solve_sparse(kg, qg, xe, ye, ze, hc_top):
     if isinstance(kg, tuple):
         nx, ny, nz = kg[0].shape
@@ -1354,15 +1586,12 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
                   tim_cond=None, infill_cond=None, underfill_cond=None,
                   force_voxel=None, use_center_plane_power=None, **kw):
     """
-    Full thermal solve — PySpice box-level (primary) then voxel FD (fallback).
+    Full thermal solve.
 
     Solver selection (in priority order):
-      1. PySpice box-level resistor network (HAS_PYSPICE=True)
-         a. ngspice operating-point via PySpice API (if ngspice is installed)
-         b. Matrix solve extracted from PySpice circuit elements (scipy/numpy)
-      2. 3D voxel finite-difference (if PySpice unavailable or crashes)
-         a. Scipy sparse CG with Jacobi preconditioner
-         b. Numpy SOR iterative solver
+      1. Voxel RC netlist solved by local ngspice (default final-project path)
+      2. Voxel sparse/numpy fallback from the same meshed physics
+      3. Legacy PySpice box-level network when voxel meshing is not requested
 
     The simulation is intentionally excluded from the project FoM runtime
     (timing is handled by the caller in therm.py).
@@ -1401,12 +1630,10 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     hc_eff = _estimate_convective_hc(heatsink_obj, hc)
 
     # ------------------------------------------------------------------
-    # PRIMARY PATH: PySpice box-level thermal circuit
-    # Uses PySpice API to build the circuit and either ngspice to solve it
-    # or extracts the conductance matrix for direct scipy/numpy solve.
+    # Legacy non-voxel path: box-level PySpice network.
     # ------------------------------------------------------------------
-    if HAS_PYSPICE and not force_voxel:
-        print("  Solver: PySpice box-level resistor network (primary)")
+    if HAS_PYSPICE and not force_voxel and not use_center_plane_power:
+        print("  Solver: PySpice box-level resistor network")
         try:
             results = solve_thermal_pyspice(
                 boxes, bonding_boxes, tim_boxes, heatsink_obj, layers, hc_eff
@@ -1414,11 +1641,11 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
             print(f"  PySpice solve done   ({time.time() - t0:.2f}s)")
             return results
         except Exception as e:
-            print(f"  PySpice solver failed ({e}). Falling back to voxel FD.")
-    elif force_voxel:
-        print("  Solver: voxel FD (forced for center-plane power model)")
+            print(f"  PySpice solver failed ({e}). Falling back to voxel RC mesh.")
+    elif force_voxel or use_center_plane_power:
+        print("  Solver: voxel RC mesh (center-plane power model)")
     else:
-        print("  PySpice not available. Using voxel FD solver.")
+        print("  PySpice not available. Using voxel RC mesh.")
 
     # ------------------------------------------------------------------
     # FALLBACK PATH: 3D voxel finite-difference solver
@@ -1466,12 +1693,15 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     total_p = (qg * vol).sum()
     print(f"  Power assigned      ({time.time() - t0:.2f}s)  total={total_p:.1f} W")
 
-    if HAS_SCIPY:
-        print("  Solving (CG with Jacobi preconditioner) ...")
-        Tg = _solve_sparse(kg, qg, xe, ye, ze, hc_eff)
-    else:
-        print("  Solving (numpy SOR) ...")
-        Tg = _solve_iter(kg, qg, xe, ye, ze, hc_eff)
+    print("  Solving voxel RC netlist with local ngspice ...")
+    Tg = _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_eff)
+    if Tg is None:
+        if HAS_SCIPY:
+            print("  ngspice unavailable. Solving fallback (CG with Jacobi preconditioner) ...")
+            Tg = _solve_sparse(kg, qg, xe, ye, ze, hc_eff)
+        else:
+            print("  ngspice unavailable. Solving fallback (numpy SOR) ...")
+            Tg = _solve_iter(kg, qg, xe, ye, ze, hc_eff)
     print(f"  Solve done          ({time.time() - t0:.2f}s)  "
           f"Tmin={Tg.min():.1f}  Tmax={Tg.max():.1f}")
 
