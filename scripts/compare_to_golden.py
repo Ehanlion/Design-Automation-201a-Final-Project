@@ -17,6 +17,40 @@ from typing import Dict, List, Tuple
 RESULTS_RE = re.compile(r"results\s*=\s*(\{.*\})\s*$", re.DOTALL)
 
 
+def _population_variance(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    mean = sum(values) / len(values)
+    return sum((v - mean) * (v - mean) for v in values) / len(values)
+
+
+def _ratio_pct(num: float, den: float) -> float:
+    # User-requested format: num/den * 100, with 100 meaning equal.
+    if den <= 0.0:
+        if num <= 0.0:
+            return 100.0
+        return float("inf")
+    return 100.0 * num / den
+
+
+def _ratio_match_pct(num: float, den: float) -> float:
+    # Symmetric bounded similarity: 100 is perfect, 0 is worst.
+    if num <= 0.0 and den <= 0.0:
+        return 100.0
+    if num <= 0.0 or den <= 0.0:
+        return 0.0
+    r = num / den
+    if r <= 0.0:
+        return 0.0
+    return 100.0 * min(r, 1.0 / r)
+
+
+def _error_score_pct(err: float, ref_scale: float) -> float:
+    # 100 is perfect (0 error). Ref scale uses golden standard deviation.
+    ref = max(ref_scale, 1e-12)
+    return 100.0 / (1.0 + (err / ref))
+
+
 def load_results_txt(path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
     text = path.read_text()
     match = RESULTS_RE.search(text)
@@ -74,11 +108,19 @@ def summarize_deltas(golden: Dict[str, Tuple[float, float]], result: Dict[str, T
 
     peak_errs: List[Tuple[str, float]] = []
     avg_errs: List[Tuple[str, float]] = []
+    golden_peaks: List[float] = []
+    golden_avgs: List[float] = []
+    result_peaks: List[float] = []
+    result_avgs: List[float] = []
     for name in common:
         g_peak, g_avg = golden[name]
         r_peak, r_avg = result[name]
         peak_errs.append((name, abs(r_peak - g_peak)))
         avg_errs.append((name, abs(r_avg - g_avg)))
+        golden_peaks.append(g_peak)
+        golden_avgs.append(g_avg)
+        result_peaks.append(r_peak)
+        result_avgs.append(r_avg)
 
     peak_max_box, peak_max_abs = max(peak_errs, key=lambda p: p[1])
     avg_max_box, avg_max_abs = max(avg_errs, key=lambda p: p[1])
@@ -88,6 +130,14 @@ def summarize_deltas(golden: Dict[str, Tuple[float, float]], result: Dict[str, T
 
     peak_rmse = math.sqrt(sum(err * err for _, err in peak_errs) / len(peak_errs))
     avg_rmse = math.sqrt(sum(err * err for _, err in avg_errs) / len(avg_errs))
+
+    peak_var_g = _population_variance(golden_peaks)
+    peak_var_o = _population_variance(result_peaks)
+    avg_var_g = _population_variance(golden_avgs)
+    avg_var_o = _population_variance(result_avgs)
+
+    peak_std_g = math.sqrt(peak_var_g)
+    avg_std_g = math.sqrt(avg_var_g)
 
     return {
         "matched_boxes": len(common),
@@ -101,6 +151,19 @@ def summarize_deltas(golden: Dict[str, Tuple[float, float]], result: Dict[str, T
         "avg_rmse_C": avg_rmse,
         "avg_max_abs_C": avg_max_abs,
         "avg_max_box": avg_max_box,
+        # Percentage metrics (100 = perfect)
+        "peak_mae_pct": _error_score_pct(peak_mae, peak_std_g),
+        "peak_rmse_pct": _error_score_pct(peak_rmse, peak_std_g),
+        "peak_max_abs_pct": _error_score_pct(peak_max_abs, peak_std_g),
+        "avg_mae_pct": _error_score_pct(avg_mae, avg_std_g),
+        "avg_rmse_pct": _error_score_pct(avg_rmse, avg_std_g),
+        "avg_max_abs_pct": _error_score_pct(avg_max_abs, avg_std_g),
+        # Requested variance percentage: var(golden)/var(ours) * 100
+        "peak_var_golden_over_ours_pct": _ratio_pct(peak_var_g, peak_var_o),
+        "avg_var_golden_over_ours_pct": _ratio_pct(avg_var_g, avg_var_o),
+        # Symmetric bounded variance match percentage
+        "peak_var_match_pct": _ratio_match_pct(peak_var_g, peak_var_o),
+        "avg_var_match_pct": _ratio_match_pct(avg_var_g, avg_var_o),
     }
 
 
@@ -114,10 +177,11 @@ def print_results(golden_count: int, compared_rows: List[dict], skipped_rows: Li
             print(
                 f"- {row['file_name']}: "
                 f"matched={row['matched_boxes']}, "
-                f"peak_mae={row['peak_mae_C']:.6f} C, peak_max={row['peak_max_abs_C']:.6f} C "
-                f"({row['peak_max_box']}), "
-                f"avg_mae={row['avg_mae_C']:.6f} C, avg_max={row['avg_max_abs_C']:.6f} C "
-                f"({row['avg_max_box']})"
+                f"peak_mae={row['peak_mae_pct']:.2f}% ({row['peak_mae_C']:.6f} C), "
+                f"peak_max={row['peak_max_abs_pct']:.2f}% ({row['peak_max_abs_C']:.6f} C, {row['peak_max_box']}), "
+                f"avg_mae={row['avg_mae_pct']:.2f}% ({row['avg_mae_C']:.6f} C), "
+                f"avg_max={row['avg_max_abs_pct']:.2f}% ({row['avg_max_abs_C']:.6f} C, {row['avg_max_box']}), "
+                f"var_pct[g/o] peak={row['peak_var_golden_over_ours_pct']:.2f}% avg={row['avg_var_golden_over_ours_pct']:.2f}%"
             )
     else:
         print("No result files matched the golden box count.")
@@ -149,6 +213,16 @@ def write_csv(rows: List[dict], out_path: pathlib.Path) -> None:
         "avg_rmse_C",
         "avg_max_abs_C",
         "avg_max_box",
+        "peak_mae_pct",
+        "peak_rmse_pct",
+        "peak_max_abs_pct",
+        "avg_mae_pct",
+        "avg_rmse_pct",
+        "avg_max_abs_pct",
+        "peak_var_golden_over_ours_pct",
+        "avg_var_golden_over_ours_pct",
+        "peak_var_match_pct",
+        "avg_var_match_pct",
     ]
     with out_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

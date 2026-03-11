@@ -125,13 +125,62 @@ USE_CENTER_Z_PLANE_POWER_DEFAULT = _env_flag(
     "EE201A_CENTER_PLANE_POWER", default=True
 )
 
-# Tuned defaults for the v4 reference case (3D_1GPU_8high_110325_higherHTC):
-# - Coarser non-uniform grid drastically cuts runtime while preserving trends.
-# - Effective HTC scaling removes the global temperature bias versus golden.
-GRID_MAX_XY_MM = _env_float("EE201A_GRID_MAX_XY_MM", 3.0)
-GRID_MAX_Z_MM = _env_float("EE201A_GRID_MAX_Z_MM", 0.5)
+# Default voxel grid controls (override via env when needed).
+GRID_MAX_XY_MM = _env_float("EE201A_GRID_MAX_XY_MM", 2.0)
+GRID_MAX_Z_MM = _env_float("EE201A_GRID_MAX_Z_MM", 0.3)
 GRID_MIN_MM = _env_float("EE201A_GRID_MIN_MM", 0.001)
-HC_EFFECTIVE_SCALE = _env_float("EE201A_HC_SCALE", 5400.0 / 7000.0)
+
+
+def _estimate_convective_hc(heatsink_obj, hc_raw):
+    """
+    Estimate an effective top convection coefficient from heatsink metadata.
+
+    For water-cooled setups we derive h from forced-convection correlations
+    and treat the XML HTC as an upper bound when provided.
+
+    This avoids directly using a nominal HTC in cases where fluid velocity is
+    not specified and keeps the boundary model tied to geometry + flow regime.
+    """
+    hs = heatsink_obj or {}
+    cooled_by = str(hs.get("cooled_by", "") or "").strip().lower()
+    if cooled_by != "water":
+        return hc_raw if (hc_raw is not None and hc_raw > 0) else 0.0
+
+    # Parse flow speed from XML; empty string means unspecified.
+    v = None
+    fs = hs.get("fluid_speed", None)
+    if fs not in (None, ""):
+        try:
+            v = float(fs)
+        except (TypeError, ValueError):
+            v = None
+    if v is None or v <= 0:
+        v = 1.0
+
+    try:
+        dx_m = float(hs.get("base_dx", 0.0)) / 1000.0
+        dy_m = float(hs.get("base_dy", 0.0)) / 1000.0
+        L = max(min(dx_m, dy_m), 1e-4)
+    except (TypeError, ValueError):
+        L = 0.02
+
+    # Water properties near 45 C.
+    rho = 990.0      # kg/m^3
+    mu = 0.0006      # Pa·s
+    kf = 0.63        # W/(m·K)
+    pr = 4.0
+
+    Re = max(rho * v * L / mu, 1.0)
+    if Re < 5e5:
+        # Laminar average Nu for constant heat flux over a flat plate.
+        Nu = 0.680 * (Re ** 0.5) * (pr ** (1.0 / 3.0))
+    else:
+        Nu = (0.037 * (Re ** 0.8) - 871.0) * (pr ** (1.0 / 3.0))
+    h_corr = max(Nu * kf / L, 1.0)
+
+    if hc_raw is None or hc_raw <= 0:
+        return h_corr
+    return min(hc_raw, h_corr)
 
 # Project-local ngspice installation (from setup/install_local_ngspice.sh).
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -263,6 +312,51 @@ def _retrieve_conductivity(box, voxel_z_lo, voxel_z_hi, lm):
             k_acc += (ov_hi - ov_lo) / voxel_dz * k
 
     return k_acc if k_acc > 0 else _get_k("Si")
+
+
+def _retrieve_conductivity_aniso(box, voxel_z_lo, voxel_z_hi, lm):
+    """
+    Compute anisotropic effective conductivity for a z-slice.
+
+    Returns
+    -------
+    (k_xy, k_z)
+      k_xy: in-plane conductivity (arithmetic mix, parallel path)
+      k_z : through-plane conductivity (harmonic mix, series path)
+    """
+    layers = _parse_stackup(box, lm)
+    if not layers:
+        k0 = _get_k("Si")
+        return k0, k0
+
+    voxel_dz = voxel_z_hi - voxel_z_lo
+    if voxel_dz <= 0:
+        k0 = _get_k("Si")
+        return k0, k0
+
+    current_z = box.start_z
+    frac_sum = 0.0
+    kxy_num = 0.0
+    kz_denom = 0.0
+    for t_mm, k in layers:
+        layer_lo = current_z
+        layer_hi = current_z + t_mm
+        current_z = layer_hi
+        ov_lo = max(layer_lo, voxel_z_lo)
+        ov_hi = min(layer_hi, voxel_z_hi)
+        if ov_lo < ov_hi and k > 0:
+            frac = (ov_hi - ov_lo) / voxel_dz
+            frac_sum += frac
+            kxy_num += frac * k
+            kz_denom += frac / k
+
+    if frac_sum <= 0:
+        k0 = _get_k("Si")
+        return k0, k0
+
+    k_xy = kxy_num / frac_sum
+    k_z = frac_sum / kz_denom if kz_denom > 0 else k_xy
+    return k_xy, k_z
 
 
 # ============================================================================
@@ -903,7 +997,9 @@ def _cr(edges, lo, hi, eps=0.0005):
 
 def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
     nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
-    k = np.full((nx, ny, nz), CONDUCTIVITY["Air"])
+    kx = np.full((nx, ny, nz), CONDUCTIVITY["Air"])
+    ky = np.full((nx, ny, nz), CONDUCTIVITY["Air"])
+    kz = np.full((nx, ny, nz), CONDUCTIVITY["Air"])
     lm = _build_layer_map(layers)
 
     excluded = {"interposer", "substrate", "PCB", "Power_Source"}
@@ -930,7 +1026,9 @@ def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
     for kk in range(nz):
         zc = (ze[kk] + ze[kk + 1]) / 2.0
         if chip_z_bot - 0.01 <= zc <= chip_z_top + 0.01:
-            k[ci0:ci1, cj0:cj1, kk] = infill_k
+            kx[ci0:ci1, cj0:cj1, kk] = infill_k
+            ky[ci0:ci1, cj0:cj1, kk] = infill_k
+            kz[ci0:ci1, cj0:cj1, kk] = infill_k
 
     for box in sorted(all_boxes, key=lambda b: b.width * b.length * b.height, reverse=True):
         i0, i1 = _cr(xe, box.start_x, box.end_x)
@@ -941,8 +1039,10 @@ def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
         for kk in range(k0, k1):
             vz_lo = ze[kk]
             vz_hi = ze[kk + 1]
-            kv = _retrieve_conductivity(box, vz_lo, vz_hi, lm)
-            k[i0:i1, j0:j1, kk] = kv
+            kxy_v, kz_v = _retrieve_conductivity_aniso(box, vz_lo, vz_hi, lm)
+            kx[i0:i1, j0:j1, kk] = kxy_v
+            ky[i0:i1, j0:j1, kk] = kxy_v
+            kz[i0:i1, j0:j1, kk] = kz_v
 
     hs = hs_obj or {}
     if hs:
@@ -954,8 +1054,10 @@ def assign_materials(all_boxes, xe, ye, ze, layers, hs_obj, infill_k=19.0):
         j0, j1 = _cr(ye, hy, hy + hdy)
         k0, k1 = _cr(ze, hz, hz + hdz)
         if k0 < k1:
-            k[i0:i1, j0:j1, k0:k1] = hk
-    return k
+            kx[i0:i1, j0:j1, k0:k1] = hk
+            ky[i0:i1, j0:j1, k0:k1] = hk
+            kz[i0:i1, j0:j1, k0:k1] = hk
+    return kx, ky, kz
 
 
 def _uses_center_plane_power(chiplet_type):
@@ -1067,27 +1169,33 @@ def assign_power(boxes, xe, ye, ze, use_center_plane_power=USE_CENTER_Z_PLANE_PO
 
 def _build_system(kg, qg, xe, ye, ze, hc_top):
     """Build sparse conductance matrix A and RHS vector b."""
-    nx, ny, nz = kg.shape
+    if isinstance(kg, tuple):
+        kxg, kyg, kzg = kg
+    else:
+        kxg = kyg = kzg = kg
+    nx, ny, nz = kxg.shape
     N = nx * ny * nz
     eps = 1e-15
 
     dx = (xe[1:] - xe[:-1]) / 1000.0
     dy = (ye[1:] - ye[:-1]) / 1000.0
     dz = (ze[1:] - ze[:-1]) / 1000.0
-    ks = np.maximum(kg, eps)
+    ksx = np.maximum(kxg, eps)
+    ksy = np.maximum(kyg, eps)
+    ksz = np.maximum(kzg, eps)
 
     Ax = dy[None, :, None] * dz[None, None, :]
     Gx = 1.0 / np.maximum(
-        dx[:nx-1, None, None] / (2 * ks[:nx-1] * Ax)
-        + dx[1:, None, None] / (2 * ks[1:] * Ax), eps)
+        dx[:nx-1, None, None] / (2 * ksx[:nx-1] * Ax)
+        + dx[1:, None, None] / (2 * ksx[1:] * Ax), eps)
     Ay = dx[:, None, None] * dz[None, None, :]
     Gy = 1.0 / np.maximum(
-        dy[None, :ny-1, None] / (2 * ks[:, :ny-1] * Ay)
-        + dy[None, 1:, None] / (2 * ks[:, 1:] * Ay), eps)
+        dy[None, :ny-1, None] / (2 * ksy[:, :ny-1] * Ay)
+        + dy[None, 1:, None] / (2 * ksy[:, 1:] * Ay), eps)
     Az = dx[:, None, None] * dy[None, :, None]
     Gz = 1.0 / np.maximum(
-        dz[None, None, :nz-1] / (2 * ks[:, :, :nz-1] * Az)
-        + dz[None, None, 1:] / (2 * ks[:, :, 1:] * Az), eps)
+        dz[None, None, :nz-1] / (2 * ksz[:, :, :nz-1] * Az)
+        + dz[None, None, 1:] / (2 * ksz[:, :, 1:] * Az), eps)
 
     ci = (np.arange(nx)[:, None, None] * (ny * nz)
           + np.arange(ny)[None, :, None] * nz
@@ -1106,11 +1214,17 @@ def _build_system(kg, qg, xe, ye, ze, hc_top):
     rhs = qg * cvol
 
     Af = dx[:, None] * dy[None, :]
-    Gt = 1.0 / np.maximum(dz[-1] / (2 * ks[:,:,-1] * Af) + 1.0 / (hc_top * Af + eps), eps)
+    Gt = 1.0 / np.maximum(
+        dz[-1] / (2 * ksz[:, :, -1] * Af) + 1.0 / (hc_top * Af + eps),
+        eps,
+    )
     diag[:,:,-1] += Gt
     rhs[:,:,-1] += Gt * AMBIENT_TEMP_C
 
-    Gb = 1.0 / np.maximum(dz[0] / (2 * ks[:,:,0] * Af) + 1.0 / (H_BOTTOM * Af + eps), eps)
+    Gb = 1.0 / np.maximum(
+        dz[0] / (2 * ksz[:, :, 0] * Af) + 1.0 / (H_BOTTOM * Af + eps),
+        eps,
+    )
     diag[:,:,0] += Gb
     rhs[:,:,0] += Gb * AMBIENT_TEMP_C
 
@@ -1124,7 +1238,10 @@ def _build_system(kg, qg, xe, ye, ze, hc_top):
 
 
 def _solve_sparse(kg, qg, xe, ye, ze, hc_top):
-    nx, ny, nz = kg.shape
+    if isinstance(kg, tuple):
+        nx, ny, nz = kg[0].shape
+    else:
+        nx, ny, nz = kg.shape
     N = nx * ny * nz
     t_s = time.time()
 
@@ -1142,25 +1259,31 @@ def _solve_sparse(kg, qg, xe, ye, ze, hc_top):
 
 
 def _solve_iter(kg, qg, xe, ye, ze, hc_top, max_it=8000, tol=0.01, omega=1.4):
-    nx, ny, nz = kg.shape
+    if isinstance(kg, tuple):
+        kxg, kyg, kzg = kg
+    else:
+        kxg = kyg = kzg = kg
+    nx, ny, nz = kxg.shape
     eps = 1e-15
     dx = (xe[1:] - xe[:-1]) / 1000.0
     dy = (ye[1:] - ye[:-1]) / 1000.0
     dz = (ze[1:] - ze[:-1]) / 1000.0
-    ks = np.maximum(kg, eps)
+    ksx = np.maximum(kxg, eps)
+    ksy = np.maximum(kyg, eps)
+    ksz = np.maximum(kzg, eps)
 
     Ax = dy[None, :, None] * dz[None, None, :]
     Gx = 1.0 / np.maximum(
-        dx[:nx-1, None, None] / (2 * ks[:nx-1] * Ax)
-        + dx[1:, None, None] / (2 * ks[1:] * Ax), eps)
+        dx[:nx-1, None, None] / (2 * ksx[:nx-1] * Ax)
+        + dx[1:, None, None] / (2 * ksx[1:] * Ax), eps)
     Ay = dx[:, None, None] * dz[None, None, :]
     Gy = 1.0 / np.maximum(
-        dy[None, :ny-1, None] / (2 * ks[:, :ny-1] * Ay)
-        + dy[None, 1:, None] / (2 * ks[:, 1:] * Ay), eps)
+        dy[None, :ny-1, None] / (2 * ksy[:, :ny-1] * Ay)
+        + dy[None, 1:, None] / (2 * ksy[:, 1:] * Ay), eps)
     Az = dx[:, None, None] * dy[None, :, None]
     Gz = 1.0 / np.maximum(
-        dz[None, None, :nz-1] / (2 * ks[:, :, :nz-1] * Az)
-        + dz[None, None, 1:] / (2 * ks[:, :, 1:] * Az), eps)
+        dz[None, None, :nz-1] / (2 * ksz[:, :, :nz-1] * Az)
+        + dz[None, None, 1:] / (2 * ksz[:, :, 1:] * Az), eps)
 
     diag = np.zeros((nx, ny, nz))
     diag[1:] += Gx; diag[:nx-1] += Gx
@@ -1171,10 +1294,16 @@ def _solve_iter(kg, qg, xe, ye, ze, hc_top, max_it=8000, tol=0.01, omega=1.4):
     rhs = qg * cvol
 
     Af = dx[:, None] * dy[None, :]
-    Gt = 1.0 / np.maximum(dz[-1] / (2 * ks[:,:,-1] * Af) + 1.0 / (hc_top * Af + eps), eps)
+    Gt = 1.0 / np.maximum(
+        dz[-1] / (2 * ksz[:, :, -1] * Af) + 1.0 / (hc_top * Af + eps),
+        eps,
+    )
     diag[:,:,-1] += Gt
     rhs[:,:,-1] += Gt * AMBIENT_TEMP_C
-    Gb = 1.0 / np.maximum(dz[0] / (2 * ks[:,:,0] * Af) + 1.0 / (H_BOTTOM * Af + eps), eps)
+    Gb = 1.0 / np.maximum(
+        dz[0] / (2 * ksz[:, :, 0] * Af) + 1.0 / (H_BOTTOM * Af + eps),
+        eps,
+    )
     diag[:,:,0] += Gb
     rhs[:,:,0] += Gb * AMBIENT_TEMP_C
 
@@ -1269,7 +1398,7 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
         hc = float((heatsink_obj or {}).get("hc", "7000"))
     except (ValueError, TypeError):
         hc = 7000.0
-    hc_eff = hc * HC_EFFECTIVE_SCALE
+    hc_eff = _estimate_convective_hc(heatsink_obj, hc)
 
     # ------------------------------------------------------------------
     # PRIMARY PATH: PySpice box-level thermal circuit
@@ -1321,8 +1450,14 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     print(f"  Grid: {nx} x {ny} x {nz} = {nx * ny * nz} cells  ({time.time() - t0:.2f}s)")
 
     kg = assign_materials(all_el, xe, ye, ze, layers, heatsink_obj, infill_k=infill_k)
+    if isinstance(kg, tuple):
+        k_min = min(arr.min() for arr in kg)
+        k_max = max(arr.max() for arr in kg)
+    else:
+        k_min = kg.min()
+        k_max = kg.max()
     print(f"  Materials assigned  ({time.time() - t0:.2f}s)  "
-          f"k range: [{kg.min():.3f}, {kg.max():.1f}]")
+          f"k range: [{k_min:.3f}, {k_max:.1f}]")
 
     qg = assign_power(
         boxes, xe, ye, ze, use_center_plane_power=use_center_plane_power
