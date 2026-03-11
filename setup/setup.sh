@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
+NGSPICE_INSTALLER="$SCRIPT_DIR/install_local_ngspice.sh"
 
 echo "=== EE 201A Final Project - Environment Setup ==="
 echo "Project:      $PROJECT_DIR"
@@ -40,6 +41,14 @@ echo ""
 
 echo "--- Installing requirements ---"
 pip install -r "$REQUIREMENTS" 2>&1 | grep -v "already satisfied" || true
+echo ""
+
+if [ "${SKIP_LOCAL_NGSPICE:-0}" = "1" ]; then
+    echo "--- Skipping local ngspice install (SKIP_LOCAL_NGSPICE=1) ---"
+else
+    echo "--- Installing local ngspice into project space ---"
+    bash "$NGSPICE_INSTALLER"
+fi
 echo ""
 
 echo "--- Verifying all imports ---"

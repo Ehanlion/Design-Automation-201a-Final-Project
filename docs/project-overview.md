@@ -70,25 +70,32 @@ The lab PDF specifies 400 W for the GPU. The Piazza course forum clarified that 
 
 ## Thermal Solver: PySpice Integration
 
-The thermal solve uses **PySpice** as the primary interface, per the course requirement:
-> "use Pyspice either as an API call or by dumping out netlist. I don't want how you solve a linear system of equations to be reason why your code is faster or slower!"
+The thermal solve uses **PySpice** and **local ngspice** per the course requirement:
+> "use Pyspice either as an API call or by dumping out netlist."
+> "Use ngspice locally."
 
-**Solver hierarchy** in `thermal_solver.solve_thermal()`:
+**Solver hierarchy** in `thermal_solver.solve_thermal()` (tried in this order):
 
-1. **PySpice box-level resistor network** (primary, `HAS_PYSPICE=True`):
-   - Builds a SPICE thermal circuit via `PySpice.Spice.Netlist.Circuit`
-   - One thermal node per physical box
-   - Interface resistors between z-adjacent boxes (half-cell R formula)
-   - Convective boundary resistors at top and bottom surfaces
-   - Current sources for power injection
-   - Exports netlist to `out_therm/thermal_netlist.sp` (the "dump netlist" path)
-   - Attempts ngspice operating-point simulation (API call path)
-   - On ngspice failure: extracts conductance matrix from PySpice elements, solves with scipy sparse CG
-   - `thermal_solver.py` is preserved and NOT removed
+1. **Local ngspice subprocess** (PRIMARY):
+   - Builds a PySpice circuit and exports `out_therm/thermal_netlist.sp`.
+   - Calls the local `ngspice` binary directly via `subprocess.run`.
+   - Appends a `.control` block (`.op` + `print all`) to the exported netlist.
+   - Parses stdout for `v(ndN) = ...` node voltages.
+   - Uses `_find_ngspice_binary()` to locate ngspice in PATH and common paths.
 
-2. **3D voxel finite-difference** (fallback, if PySpice unavailable):
-   - Non-uniform grid aligned to box boundaries
-   - scipy sparse CG or numpy SOR
+2. **PySpice API** (SECONDARY, if ngspice binary not found or fails):
+   - Calls `circuit.simulator(temperature=25).operating_point()` via PySpice.
+   - Still uses local ngspice internally but through PySpice's subprocess wrapper.
+
+3. **Custom RC linear-algebra solver** (FALLBACK, if both ngspice paths fail):
+   - Assembles the conductance matrix from the same `G_pairs`/`P_vec`/`G_conv`
+     topology used to build the PySpice circuit — identical physics.
+   - Solves with `scipy.sparse.linalg.spsolve` or `numpy.linalg.solve`.
+   - `thermal_solver.py` is preserved and NOT removed.
+
+4. **3D voxel finite-difference** (if PySpice import fails entirely):
+   - Non-uniform grid aligned to chiplet/bonding/TIM/heatsink boundaries.
+   - scipy sparse CG or numpy SOR.
 
 **Simulation timing** is excluded from the FoM runtime (sizing + placement only).
 

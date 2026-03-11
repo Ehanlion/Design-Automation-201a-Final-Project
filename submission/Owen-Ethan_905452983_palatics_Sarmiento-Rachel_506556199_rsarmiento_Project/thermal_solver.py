@@ -42,6 +42,7 @@ import math
 import os
 import time
 import numpy as np
+from pathlib import Path
 
 try:
     from scipy import sparse
@@ -98,6 +99,11 @@ H_BOTTOM = 10.0             # bottom convection coefficient W/(m²·K)
 
 # Default path for exported SPICE netlist
 NETLIST_EXPORT_PATH = os.path.join("out_therm", "thermal_netlist.sp")
+
+# Project-local ngspice installation (from setup/install_local_ngspice.sh).
+PROJECT_ROOT = Path(__file__).resolve().parent
+LOCAL_NGSPICE_PREFIX = PROJECT_ROOT / "third_party" / "ngspice" / "install"
+LOCAL_NGSPICE_BIN = LOCAL_NGSPICE_PREFIX / "bin" / "ngspice"
 
 
 # ============================================================================
@@ -444,14 +450,197 @@ def _export_pyspice_netlist(circuit, path=NETLIST_EXPORT_PATH):
         print(f"  Warning: could not export netlist: {e}")
 
 
-def _solve_pyspice_ngspice(circuit):
+def _find_ngspice_binary():
+    """
+    Locate the ngspice binary, preferring project-local installation.
+
+    Returns the path to the ngspice binary, or None if not found.
+    """
+    import shutil
+    import subprocess
+
+    env_override = os.environ.get("EE201A_NGSPICE_BIN")
+    candidates = []
+    if env_override:
+        candidates.append(env_override)
+
+    candidates.extend([
+        str(LOCAL_NGSPICE_BIN),
+        "ngspice",
+        "/usr/bin/ngspice",
+        "/usr/local/bin/ngspice",
+        "/opt/local/bin/ngspice",
+        "/usr/share/ngspice/bin/ngspice",
+        os.path.expanduser("~/.local/bin/ngspice"),
+    ])
+
+    for cand in candidates:
+        if shutil.which(cand) or os.path.isfile(cand):
+            try:
+                resolved = shutil.which(cand) or cand
+                subprocess.run(
+                    [resolved, "--version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=5,
+                )
+                return resolved
+            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+                continue
+    return None
+
+
+def _find_local_ngspice_library():
+    """
+    Locate libngspice.so within the project-local installation, if available.
+    """
+    for lib_subdir in ("lib", "lib64"):
+        lib_dir = LOCAL_NGSPICE_PREFIX / lib_subdir
+        if not lib_dir.is_dir():
+            continue
+        exact = lib_dir / "libngspice.so"
+        if exact.is_file():
+            return str(exact)
+        for candidate in sorted(lib_dir.glob("libngspice.so*")):
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def _configure_ngspice_environment(ngspice_bin):
+    """
+    Configure environment variables so PySpice uses the local ngspice install.
+    """
+    if not ngspice_bin:
+        return
+
+    bin_dir = str(Path(ngspice_bin).resolve().parent)
+    old_path = os.environ.get("PATH", "")
+    path_parts = old_path.split(os.pathsep) if old_path else []
+    if bin_dir not in path_parts:
+        os.environ["PATH"] = bin_dir + (os.pathsep + old_path if old_path else "")
+
+    lib_path = _find_local_ngspice_library()
+    if lib_path:
+        os.environ["NGSPICE_LIBRARY_PATH"] = lib_path
+        lib_dir = str(Path(lib_path).resolve().parent)
+        old_ld_path = os.environ.get("LD_LIBRARY_PATH", "")
+        ld_parts = old_ld_path.split(os.pathsep) if old_ld_path else []
+        if lib_dir not in ld_parts:
+            os.environ["LD_LIBRARY_PATH"] = (
+                lib_dir + (os.pathsep + old_ld_path if old_ld_path else "")
+            )
+
+
+def _solve_ngspice_subprocess(netlist_path, node_map, ngspice_bin=None):
+    """
+    PRIMARY ngspice path — call the local ngspice binary directly via subprocess.
+
+    Solver order (per project requirement):
+      1. Local ngspice binary  ← this function
+      2. PySpice API          ← _solve_pyspice_ngspice
+      3. Custom RC matrix     ← _solve_box_network_matrix
+
+    Reads the already-exported PySpice netlist, appends a .control block that
+    runs .op and prints all node voltages, then launches ngspice in batch mode.
+    Parses stdout for lines like "v(nd0) = 5.50000e+01".
+
+    Returns dict {node_name: float voltage} on success, None on failure.
+    """
+    import subprocess, tempfile, re
+
+    ngspice_bin = ngspice_bin or _find_ngspice_binary()
+    if ngspice_bin is None:
+        print("  [ngspice-local] binary not found in PATH or common locations.")
+        return None
+
+    try:
+        with open(netlist_path, "r") as f:
+            base_netlist = f.read()
+
+        # Remove any existing .end so we can append our .control block
+        base_no_end = re.sub(r"(?im)^\s*\.end\s*$", "", base_netlist).rstrip()
+
+        # node_map maps physical box names -> integer indices. The SPICE netlist
+        # uses canonical node labels "nd{index}".
+        node_names = [f"nd{i}" for i in sorted(node_map.values())]
+        print_nodes = " ".join(f"v({n})" for n in node_names)
+
+        control_block = (
+            "\n.control\n"
+            "op\n"
+            f"print {print_nodes}\n"
+            ".endc\n"
+            ".end\n"
+        )
+        full_netlist = base_no_end + control_block
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sp", delete=False, prefix="thermal_ngspice_"
+        ) as tmp:
+            tmp.write(full_netlist)
+            tmp_path = tmp.name
+
+        result = subprocess.run(
+            [ngspice_bin, "-b", tmp_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=180,
+        )
+
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+        combined = result.stdout + result.stderr
+        voltages = {}
+        # ngspice batch output: "v(nd0)              =  5.50000e+01"
+        v_pattern = re.compile(
+            r"v\((nd\d+)\)\s*=\s*([-+]?\d+\.?\d*(?:[eE][-+]?\d+)?)"
+        )
+        for line in combined.splitlines():
+            m = v_pattern.search(line)
+            if m:
+                voltages[m.group(1)] = float(m.group(2))
+
+        if voltages:
+            print(
+                f"  [ngspice-local] Parsed {len(voltages)}/{len(node_map)} node voltages."
+            )
+            return voltages
+        else:
+            print(
+                "  [ngspice-local] ngspice ran but produced no parseable node voltages."
+            )
+            if result.returncode != 0:
+                print(f"  [ngspice-local] exit code {result.returncode}")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print("  [ngspice-local] ngspice timed out after 180 s.")
+        return None
+    except Exception as e:
+        print(f"  [ngspice-local] Failed: {type(e).__name__}: {e}")
+        return None
+
+
+def _solve_pyspice_ngspice(circuit, ngspice_bin=None):
     """
     Attempt to solve the PySpice circuit via ngspice (operating-point).
 
     Returns a dict {node_name: voltage} on success, None on failure.
     """
     try:
-        simulator = circuit.simulator(temperature=25, nominal_temperature=25)
+        sim_kwargs = dict(
+            temperature=25,
+            nominal_temperature=25,
+            simulator="ngspice-subprocess",
+        )
+        if ngspice_bin:
+            sim_kwargs["spice_command"] = ngspice_bin
+        simulator = circuit.simulator(**sim_kwargs)
         analysis = simulator.operating_point()
         result = {}
         for node in analysis.nodes:
@@ -560,7 +749,9 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     )
     print(f"  [PySpice] Box network: {N} nodes, {len(G_pairs)} interface conductances")
 
-    # Build PySpice circuit (API-based network construction)
+    # Build PySpice circuit (API-based network construction) and export netlist.
+    # The netlist export is required for the local-ngspice subprocess path as
+    # well as for the "dump out netlist" project requirement.
     circuit = None
     T_vec = None
 
@@ -568,22 +759,46 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
         circuit = _build_pyspice_circuit(all_boxes, node_map, G_pairs, P_vec, G_conv)
         _export_pyspice_netlist(circuit, path=netlist_path)
 
-        # PRIMARY: attempt ngspice operating-point simulation
-        ngspice_result = _solve_pyspice_ngspice(circuit)
-        if ngspice_result is not None:
-            T_vec = np.full(N, AMBIENT_TEMP_C)
-            for i in range(N):
-                node_name = f"nd{i}"
-                if node_name in ngspice_result:
-                    # Node voltage = temperature rise above ambient
-                    T_vec[i] = ngspice_result[node_name] + AMBIENT_TEMP_C
-            print("  [PySpice] ngspice simulation succeeded.")
+    # -----------------------------------------------------------------------
+    # SOLVER PRIORITY ORDER (per course requirement and Piazza guidance):
+    #   1. Local ngspice subprocess  — call ngspice binary directly with the
+    #      exported netlist; most direct use of the local SPICE installation.
+    #   2. PySpice API               — circuit.simulator().operating_point();
+    #      still uses local ngspice but via PySpice's subprocess wrapper.
+    #   3. Custom RC lin-alg solver  — assemble conductance matrix from the
+    #      same network topology and solve with scipy sparse CG / numpy.
+    # -----------------------------------------------------------------------
 
-    # FALLBACK: extract matrix from same network topology and solve directly.
-    # This gives identical physics to the ngspice path — only the solver
-    # backend differs (scipy sparse / numpy vs ngspice Gaussian elimination).
+    ngspice_result = None
+    ngspice_bin = _find_ngspice_binary()
+    _configure_ngspice_environment(ngspice_bin)
+
+    # -- Step 1: Local ngspice subprocess (PRIMARY) --------------------------
+    if HAS_PYSPICE and os.path.exists(netlist_path):
+        print("  [Solver 1/3] Attempting local ngspice subprocess ...")
+        ngspice_result = _solve_ngspice_subprocess(
+            netlist_path, node_map, ngspice_bin=ngspice_bin
+        )
+
+    # -- Step 2: PySpice API (ngspice via PySpice interface) -----------------
+    if ngspice_result is None and HAS_PYSPICE and circuit is not None:
+        print("  [Solver 2/3] Attempting PySpice API (ngspice via PySpice) ...")
+        ngspice_result = _solve_pyspice_ngspice(circuit, ngspice_bin=ngspice_bin)
+
+    # Populate T_vec from whichever ngspice path succeeded
+    if ngspice_result is not None:
+        T_vec = np.full(N, AMBIENT_TEMP_C)
+        for i in range(N):
+            node_name = f"nd{i}"
+            if node_name in ngspice_result:
+                # Node voltage = temperature rise above ambient
+                T_vec[i] = ngspice_result[node_name] + AMBIENT_TEMP_C
+        print("  ngspice simulation succeeded.")
+
+    # -- Step 3: Custom RC lin-alg solver (final fallback) -------------------
     if T_vec is None:
-        print("  [PySpice] Solving via direct matrix assembly from network topology ...")
+        print("  [Solver 3/3] Solving via custom RC linear-algebra solver "
+              "(direct conductance-matrix assembly) ...")
         T_vec = _solve_box_network_matrix(N, G_pairs, P_vec, G_conv)
 
     # Extract results for the primary boxes only (not bonding/TIM auxiliaries)

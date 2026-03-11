@@ -29,6 +29,14 @@ source .venv/bin/activate
 ./scripts/run_config3_2p5D.sh
 ```
 
+`setup/setup.sh` also installs a **project-local ngspice** build at:
+`third_party/ngspice/install/bin/ngspice`
+
+If you need to override the binary path explicitly, set:
+```bash
+export EE201A_NGSPICE_BIN=/absolute/path/to/ngspice
+```
+
 See `docs/RUNNING_GUIDE.md` for detailed test commands, argument descriptions, and file documentation.
 
 ## Repository Structure
@@ -78,7 +86,7 @@ The solver uses **PySpice** as the primary interface for building and solving th
 > "use Pyspice either as an API call or by dumping out netlist. I don't want how you solve a linear system of equations to be reason why your code is faster or slower!" — course staff (Piazza)
 
 Solver hierarchy (in priority order):
-1. **PySpice box-level resistor network** (primary): Builds a SPICE thermal circuit via `PySpice.Spice.Netlist.Circuit` (one thermal node per box), exports netlist to `out_therm/thermal_netlist.sp`, attempts ngspice operating-point simulation, then falls back to direct matrix solve from the same PySpice network topology.
+1. **PySpice box-level resistor network** (primary): Builds a SPICE thermal circuit via `PySpice.Spice.Netlist.Circuit` (one thermal node per box), exports netlist to `out_therm/thermal_netlist.sp`, and runs ngspice using the project-local binary (`third_party/ngspice/install/bin/ngspice`) when available. Falls back to direct matrix solve from the same PySpice network topology only if ngspice is unavailable.
 2. **3D voxel finite-difference** (fallback if PySpice import fails): scipy sparse CG or numpy SOR.
 
 The simulation is excluded from the figure-of-merit runtime. Only sizing + placement time is measured.

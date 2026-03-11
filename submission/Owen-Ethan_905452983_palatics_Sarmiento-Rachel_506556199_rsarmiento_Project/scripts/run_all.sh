@@ -26,3 +26,15 @@ echo ""
 echo "========================================"
 echo "  All 3 configurations completed"
 echo "========================================"
+
+echo ""
+echo "========================================"
+echo "  Summarizing all results"
+echo "========================================"
+
+"$SCRIPT_DIR/summarize_all.sh"
+
+echo ""
+echo "========================================"
+echo "  All results summarized"
+echo "========================================"
