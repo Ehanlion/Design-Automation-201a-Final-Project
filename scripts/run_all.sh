@@ -97,3 +97,22 @@ echo ""
 echo "========================================"
 echo "  All results summarized"
 echo "========================================"
+
+echo ""
+echo "========================================"
+echo "  Comparing results to golden reference"
+echo "========================================"
+
+python3 "$SCRIPT_DIR/convert_golden_output.py" \
+  --input "$PROJECT_DIR/solutions/golden_output.txt" \
+  --output "$PROJECT_DIR/solutions/golden_output_results.txt"
+
+python3 "$SCRIPT_DIR/compare_to_golden.py" \
+  --golden "$PROJECT_DIR/solutions/golden_output_results.txt" \
+  --results_dir "$PROJECT_DIR/out_therm" \
+  --csv "$PROJECT_DIR/out_therm/golden_comparison.csv"
+
+echo ""
+echo "========================================"
+echo "  Golden comparison complete"
+echo "========================================"
