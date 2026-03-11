@@ -16,6 +16,9 @@ Run on SEASnet server `eeapps.seas.ucla.edu`.
 source .venv/bin/activate  # activate for current shell
 ```
 
+`setup/setup.sh` also builds and installs **local ngspice** into this repo:
+`third_party/ngspice/install/bin/ngspice`
+
 **Manual setup** (alternative):
 ```bash
 pip3 install --user click seaborn scikit-learn sortedcontainers
