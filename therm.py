@@ -2,17 +2,15 @@
 Thermal analysis tool for 2.5-D and 3-D GPU + HBM chiplet systems.
 
 Uses click to parse thermal configs, performs chiplet placement and sizing,
-and runs a PySpice-based thermal resistance network simulation.
+and runs an ngspice-first thermal resistance network simulation.
 
 SOLVER ARCHITECTURE:
-  The thermal solve (simulator_simulate → thermal_solver.solve_thermal) uses
-  PySpice as the primary interface for building and solving the resistor
-  network (per project requirement and Piazza course-staff guidance):
-    "use Pyspice either as an API call or by dumping out netlist"
-  If PySpice or ngspice is unavailable the solver falls back to a direct
-  matrix assembly (scipy sparse CG or numpy SOR) using the same network
-  topology extracted from the PySpice circuit.  thermal_solver.py is kept
-  intact and is NOT replaced.
+  The thermal solve (simulator_simulate → thermal_solver.solve_thermal)
+  builds a meshed voxel RC network, exports it as a SPICE netlist, and uses
+  the project-local ngspice binary as the first-choice solver. This matches
+  the project requirement that the RC netlist solving be done with ngspice.
+  If ngspice is unavailable or fails, the code falls back to a direct matrix
+  solve (scipy sparse CG or numpy SOR) using the same voxel-network physics.
 
 SIMULATION TIMING EXCLUSION:
   The project figure-of-merit runtime covers only sizing and placement — NOT
@@ -88,20 +86,16 @@ def simulator_simulate(
     Solve the thermal resistance network and return per-box temperature results.
 
     Delegates to thermal_solver.solve_thermal() which implements the following
-    solver hierarchy (per project requirement to use PySpice):
+    solver hierarchy for final-project runs:
 
-      1. PySpice box-level resistor network (PRIMARY):
-         - Builds a SPICE thermal circuit using PySpice's API
-           (PySpice.Spice.Netlist.Circuit) — one thermal node per physical box.
-         - Exports the SPICE netlist to out_therm/thermal_netlist.sp.
-         - Attempts ngspice operating-point analysis via PySpice.
-         - Falls back to direct matrix solve from the same PySpice circuit
-           topology (scipy sparse CG or numpy) when ngspice is unavailable.
-
-      2. 3D voxel finite-difference (FALLBACK if PySpice import fails):
+      1. Meshed voxel RC netlist (PRIMARY):
          - Builds a non-uniform 3D grid aligned to chiplet boundaries.
          - Assigns per-voxel conductivities from layer stackup definitions.
-         - Solves with scipy sparse CG (or numpy SOR as further fallback).
+         - Deposits GPU/HBM power on each die's center z-plane.
+         - Exports the RC netlist and solves it with local ngspice.
+
+      2. Sparse/numpy fallback:
+         - Uses scipy sparse CG (or numpy SOR) only if ngspice fails.
 
     This function is deliberately NOT the timing-critical path. The caller
     wraps it with simulation_start_time / simulation_end_time and the result
@@ -114,7 +108,8 @@ def simulator_simulate(
     from thermal_solver import solve_thermal
 
     # Final Project v4 requires GPU/HBM power injection on each die's center
-    # z-plane; this is resolved by the voxel solver path.
+    # z-plane, so we always use the voxel mesh. That mesh is now solved by
+    # ngspice first, with the internal linear-algebra path only as fallback.
     return solve_thermal(
         boxes,
         bonding_box_list,

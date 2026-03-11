@@ -16,12 +16,12 @@ skipped_case_count: 2
 
 Case 1: ECTC_3D_1GPU_8high_110325_higherHTC_results.txt
 matched_boxes: 61/61 | 61/61 ideal
-peak_mean_absolute_error_c: 0.271356 C | 0.000000 C ideal
-average_mean_absolute_error_c: 0.250549 C | 0.000000 C ideal
+peak_mean_absolute_error_c: 0.271364 C | 0.000000 C ideal
+average_mean_absolute_error_c: 0.250548 C | 0.000000 C ideal
 peak_variance_match_percent: 67.32% | 100.00% ideal
-peak_variance_values_c2: result=0.683686, golden=0.460271
+peak_variance_values_c2: result=0.683685, golden=0.460271
 average_variance_match_percent: 97.90% | 100.00% ideal
-average_variance_values_c2: result=0.652490, golden=0.638761
+average_variance_values_c2: result=0.652491, golden=0.638761
 
 Skipped files note:
 Skipped files are excluded from compared metrics.

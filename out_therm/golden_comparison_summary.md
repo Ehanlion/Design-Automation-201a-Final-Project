@@ -25,10 +25,10 @@ Focused on the grading-relevant correctness metrics only: distance from golden a
 | Metric | Result | Ideal | Notes |
 | --- | --- | --- | --- |
 | Matched boxes | `61/61` | `61/61` | Same box count and normalized box names matched |
-| Peak MAE (C) | `0.271356` | `0.000000` | Lower is better |
-| Average MAE (C) | `0.250549` | `0.000000` | Lower is better |
-| Peak variance match (%) | `67.32%` | `100.00%` | `var(result_peak)=0.683686`, `var(golden_peak)=0.460271` |
-| Average variance match (%) | `97.90%` | `100.00%` | `var(result_avg)=0.652490`, `var(golden_avg)=0.638761` |
+| Peak MAE (C) | `0.271364` | `0.000000` | Lower is better |
+| Average MAE (C) | `0.250548` | `0.000000` | Lower is better |
+| Peak variance match (%) | `67.32%` | `100.00%` | `var(result_peak)=0.683685`, `var(golden_peak)=0.460271` |
+| Average variance match (%) | `97.90%` | `100.00%` | `var(result_avg)=0.652491`, `var(golden_avg)=0.638761` |
 
 ## Skipped Files
 
