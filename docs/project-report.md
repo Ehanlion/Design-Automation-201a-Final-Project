@@ -1,132 +1,193 @@
-# EE 201A Final Project Report (v4 Alignment)
+# EE 201A Final Project Report
 ## Thermal Resistance Network Solver for 3D/2.5D GPU+HBM Packages
 
 **Authors:** Ethan Owen (905452983), Rachel Sarmiento (506556199)  
-**Date:** March 2026
+**Date:** March 11, 2026
 
-## 1. Project v4 Requirement Updates Incorporated
+## 1. Project Scope and Final v4 Alignment
 
-This submission was updated to match **Final Project v4**:
+This project builds a thermal resistance network for GPU+HBM packages and solves that network with a local `ngspice` installation, as required by **Final Project v4** and the Piazza clarifications.
 
-1. **Power_Source power set to 0 W**
-   - Implemented in `therm.py` by forcing `Power_Source` to `0.0` and omitting it from `power_dict`.
-   - Backside conversion-loss injection is disabled for v4 behavior.
-2. **Golden reference integrated**
-   - `solutions/golden_output.txt` is converted to `solutions/golden_output_results.txt`.
-   - `compare_to_golden.py` computes per-box correctness metrics against the golden case.
-3. **GPU/HBM power distribution changed**
-   - Power is deposited in the **center z-plane** of each GPU/HBM die/tier (per v4 figure).
-   - Implemented in `thermal_solver.py` voxel power assignment.
+The final implementation reflects the following v4 updates:
 
-## 2. Required Reporting Items (from v4) and Where Addressed
+1. `Power_Source` is modeled as **0 W**.
+2. GPU and HBM heat is injected on the **center z-plane** of each powered die/tier.
+3. The thermal network is exported as a **SPICE netlist** and solved with **local `ngspice`** first.
+4. All temperatures are reported in **degrees Celsius** with **ambient = 45 C**.
 
-1. **Ambient temperature**: fixed at **45 C** (`thermal_solver.py`, `AMBIENT_TEMP_C = 45.0`).
-2. **Temperature units**: all reported temperatures are in **degrees Celsius**.
-3. **Approach/meshing/resistance method**: Sections 3 and 4 below.
-4. **Correctness + runtime grading focus**: Sections 5 and 6 below.
+## 2. Required Report Items and Where They Are Addressed
 
-## 3. Thermal Modeling Approach
+The project PDF asks the report/slides to state the approach used, whether uniform or non-uniform meshing was used, and how voxel resistances were calculated.
+
+This report covers those items directly:
+
+1. **Approach used**: Sections 3 and 4.
+2. **Uniform or non-uniform meshing**: Section 3.1.
+3. **How voxel resistances were calculated**: Section 3.2.
+4. **Ambient temperature and temperature units**: Section 3.4.
+5. **Correctness and runtime reporting**: Sections 5 and 6.
+
+## 3. Thermal Modeling Method
 
 ### 3.1 Meshing strategy
 
-- We use a **non-uniform voxel grid** aligned to geometric boundaries of:
+We use a **non-uniform 3D voxel mesh**.
+
+- Mesh lines are aligned to the geometric boundaries of:
   - chiplet boxes
   - bonding boxes
   - TIM boxes
   - heatsink base
-- Grid is generated from sorted boundary edges and subdivided with resolution limits (`build_grid` in `thermal_solver.py`).
-- Current defaults:
+- Additional subdivision is applied to keep cell sizes bounded while preserving boundary alignment.
+- Current default controls in `thermal_solver.py` are:
   - `max_xy = 2.0 mm`
   - `max_z = 0.3 mm`
   - `min_s = 0.001 mm`
 
-### 3.2 Voxel thermal resistance model
+This gives a mesh that is finer near important package boundaries without forcing a globally uniform discretization.
 
-For each voxel, conductance links in `x/y/z` are built from half-cell series resistances:
+### 3.2 Voxel resistance / conductance calculation
 
-- `R_face = dx/(2*k1*A) + dx/(2*k2*A)` (similarly for `y`, `z`)
-- `G_face = 1/R_face`
+Each voxel becomes a thermal node in the RC network.
 
-Boundary conditions:
+Neighboring voxels are connected by conductances derived from half-cell series thermal resistances. For a face-normal direction:
 
-- Top boundary uses convection via heatsink `hc`.
-- For water-cooled cases, effective `hc` is estimated algorithmically from
-  forced-convection Nusselt correlation (`Nu_L`) with water properties near 45 C.
-  - Laminar branch uses the constant-heat-flux average plate form.
-  - XML `hc` is treated as an upper bound (no manual scaling factors).
-- Bottom boundary uses `H_BOTTOM`.
-- Ambient reference is 45 C.
+`R_face = d1 / (2*k1*A) + d2 / (2*k2*A)`
 
-### 3.3 Power model (v4)
+and
 
-- `Power_Source`: **0 W**.
-- GPU + HBM tiers:
-  - total box power preserved
-  - distributed only to the **center z-plane** voxel slice(s) inside each powered box
-  - if center lies on a grid boundary, both adjacent slices are used
+`G_face = 1 / R_face`
 
-This follows the v4 requirement image showing a center-plane heat source rather than full-volume source.
+where:
 
-## 4. Solver Path
+- `d1`, `d2` are the two half-cell distances to the shared face
+- `k1`, `k2` are the thermal conductivities on the two sides
+- `A` is the shared face area
 
-- For v4 runs, `simulator_simulate()` calls `solve_thermal(..., force_voxel=True, use_center_plane_power=True)`.
-- This enforces the mesh-resolved model needed for center-plane power injection.
-- PySpice/netlist path remains in code as an alternate solver path, but v4 output generation is based on the voxel RC system for this power model.
+This is computed independently for `x`, `y`, and `z`, so anisotropic effective conductivity across stacked layers is preserved.
 
-## 5. Correctness Evaluation vs Golden Output
+### 3.3 Material and boundary modeling
 
-### 5.1 Metric definitions used
+Material assignment is derived from the package stackup and heatsink definitions.
 
-Compared per box:
+- Layer stackups are mapped into per-voxel conductivity values.
+- The top boundary is connected to ambient through a convection resistance.
+- The bottom boundary is also connected to ambient through a convection resistance.
+- For water-cooled cases, we estimate an effective top-side convection coefficient from a forced-convection correlation and cap it by the XML-provided `hc`.
 
-- Peak temperature MAE / RMSE / max-abs error
-- Average temperature MAE / RMSE / max-abs error
-- Percentage scores (`100%` = perfect):
-  - `peak_mae_pct`, `peak_rmse_pct`, `peak_max_abs_pct`
-  - `avg_mae_pct`, `avg_rmse_pct`, `avg_max_abs_pct`
-  - Variance percentage (requested): `var(golden)/var(ours) * 100`
-  - Symmetric variance match percentage: `min(var(golden)/var(ours), var(ours)/var(golden)) * 100`
+### 3.4 Power and temperature assumptions
 
-The percentage metrics keep the same correctness information while making comparison easier to read.
+- **Ambient temperature:** `45 C`
+- **Temperature unit:** Celsius throughout
+- **GPU power:** `270 W`
+- **HBM stack power:** `5 W` per stack
+- **Power_Source:** `0 W`
 
-### 5.2 Current reference-case numbers
+For Final Project v4, GPU and HBM power is deposited on the **center z-plane** of each powered die or HBM tier. If the center plane lies on a voxel boundary, the power is split across the two adjacent slices.
 
-Reference case: `ECTC_3D_1GPU_8high_110325_higherHTC`  
-Source: `out_therm/golden_comparison.csv`
+## 4. Solver Flow and ngspice Usage
 
-- Matched boxes: `61/61`
-- Peak MAE: `0.2714 C`
-- Avg MAE: `0.2505 C`
-- Peak RMSE: `0.3547 C`
-- Avg RMSE: `0.3844 C`
-- Peak MAE score: `71.43%`
-- Avg MAE score: `76.13%`
-- Peak RMSE score: `65.67%`
-- Avg RMSE score: `67.53%`
-- Peak max-abs score: `36.06%`
-- Avg max-abs score: `34.69%`
-- Peak variance `%` (`var(golden)/var(ours)*100`): `67.32%`
-- Avg variance `%` (`var(golden)/var(ours)*100`): `97.90%`
+### 4.1 Primary solver path
 
-These are produced algorithmically by the solver and comparison scripts; no output values are hardcoded from golden.
+For final-project runs, `therm.py` calls the voxel solver path with center-plane power enabled. The flow is:
 
-## 6. Runtime Reporting (v4 grading criterion)
+1. Build the non-uniform voxel mesh.
+2. Assign materials and power.
+3. Assemble the voxel RC network.
+4. Export the network to `out_therm/thermal_netlist.sp`.
+5. Solve the netlist with the project-local binary:
+   `third_party/ngspice/install/bin/ngspice`
+6. Convert node voltages back into temperatures.
 
-Runtime is split into:
+This now makes `ngspice` the **first-choice solver**, which was the main project requirement.
 
-1. **Placement/sizing runtime** (reported as total runtime excluding simulation)
-2. **Thermal simulation runtime** (reported separately)
+### 4.2 Implementation details that make ngspice practical
 
-This matches the requested grading emphasis on runtime while keeping solver time explicit.
-For `ECTC_3D_1GPU_8high_110325_higherHTC`, current simulation runtime is about `12.6 s`
-with the physics-only solver settings above.
+The final code uses several measures to keep the `ngspice` path robust on the actual project meshes:
+
+- direct invocation of the project-local `ngspice` binary
+- KLU enabled in the exported netlist via `.option klu`
+- voltage extraction through `wrdata` files instead of huge stdout dumps
+- configurable timeout through `EE201A_NGSPICE_TIMEOUT_S`
+
+### 4.3 Fallback behavior
+
+If `ngspice` is unavailable or fails, the code falls back to the existing matrix-based solver:
+
+- SciPy sparse CG with Jacobi preconditioner
+- NumPy SOR if SciPy is unavailable
+
+This fallback uses the **same voxel-network physics**, so it is a backend change, not a model change.
+
+### 4.4 Validation of ngspice correctness
+
+We explicitly validated that the `ngspice` solution and the internal matrix fallback agree on the **same voxel network**.
+
+For the default 2.5D case mesh:
+
+- maximum peak-temperature difference: `3.70e-05 C`
+- maximum average-temperature difference: `3.64e-05 C`
+
+This confirms that the exported RC netlist is consistent with the internally assembled linear system.
+
+## 5. Results and Correctness
+
+### 5.1 Current run summary
+
+From the current `out_therm/summary.md` results:
+
+| Project | Hottest box | Peak temp (C) | GPU peak (C) | HBM peak (C) | Box count |
+| --- | --- | --- | --- | --- | --- |
+| `ECTC_2p5D_1GPU_8high_110325_higherHTC` | `Power_Source.substrate.set_primary.GPU` | `101.2606` | `101.2606` | `93.4960` | `57` |
+| `ECTC_3D_1GPU_8high_110325_higherHTC` | `Power_Source.substrate.GPU` | `126.4009` | `126.4009` | `125.3038` | `61` |
+| `ECTC_3D_1GPU_8high_120125_higherHTC` | `Power_Source.substrate.HBM#1` | `122.3400` | `122.0180` | `122.3400` | `61` |
+
+### 5.2 Golden comparison case
+
+The current golden comparison is available for the matching 3D reference case:
+
+`ECTC_3D_1GPU_8high_110325_higherHTC`
+
+From `out_therm/golden_comparison_summary.md`:
+
+- matched boxes: `61/61`
+- peak MAE: `0.271364 C`
+- average MAE: `0.250548 C`
+- peak variance match: `67.32%`
+- average variance match: `97.90%`
+
+These are the grading-relevant correctness metrics currently available from the provided golden flow.
+
+## 6. Runtime Reporting
+
+We report runtime in two parts:
+
+1. **placement/sizing runtime**
+2. **thermal solve runtime**
+
+This separation makes it easier to see both algorithmic overhead and the actual RC solve cost.
+
+Recent verified `ngspice` solve times on the current code:
+
+- `ECTC_2p5D_1GPU_8high_110325_higherHTC`
+  - mesh size: `20880` nodes
+  - `ngspice` solve time: about `92.31 s`
+- `ECTC_3D_1GPU_8high_120125_higherHTC`
+  - mesh size: `11718` nodes
+  - `ngspice` solve time: about `30.31 s`
+
+We also verified that enabling KLU materially improves `ngspice` runtime on intermediate meshes while preserving the same temperatures.
 
 ## 7. Reproducible Flow
 
 ```bash
 ./setup/setup.sh
 source .venv/bin/activate
+
+bash scripts/run_config1_3D_gpu_top.sh
 bash scripts/run_config2_3D_gpu_bottom.sh
+bash scripts/run_config3_2p5D.sh
+
 python3 convert_golden_output.py
 python3 compare_to_golden.py \
   --golden solutions/golden_output_results.txt \
@@ -136,14 +197,23 @@ python3 compare_to_golden.py \
 
 ## 8. Deliverables Produced
 
-Per run:
+For each run:
 
 - `out_therm/<project>.png`
 - `out_therm/<project>3D.png`
 - `out_therm/<project>_results.txt`
 - `out_therm/<project>_results.yaml`
 
-Comparison outputs:
+Netlist / solver artifact:
+
+- `out_therm/thermal_netlist.sp`
+
+Golden-comparison outputs:
 
 - `solutions/golden_output_results.txt`
 - `out_therm/golden_comparison.csv`
+- `out_therm/golden_comparison_summary.md`
+
+## 9. Main Final Takeaway
+
+The final submission now satisfies the key project requirement that the **meshed thermal RC network be solved with local `ngspice`**. The solver uses a non-uniform voxel mesh, center-plane GPU/HBM power deposition, exported SPICE netlists, and validated fallback behavior. The `ngspice` and matrix solutions agree to within about `1e-5` to `1e-4 C`, so the netlist generation and solver integration are numerically consistent.
