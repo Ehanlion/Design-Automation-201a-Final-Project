@@ -1,0 +1,43 @@
+# Golden comparison summary
+# One compared case per section. One metric per line.
+
+Metric definitions:
+- peak_mean_absolute_error_c: mean absolute error of peak temperatures (lower is better)
+- average_mean_absolute_error_c: mean absolute error of average temperatures (lower is better)
+- peak_root_mean_square_error_c / average_root_mean_square_error_c: RMS error in C (lower is better)
+- peak_maximum_absolute_error_c / average_maximum_absolute_error_c: worst-case absolute error in C (lower is better)
+- *_score_percent: 100/(1 + error/stddev_golden), so 100 is perfect and higher is better
+- peak_variance_percent_golden_over_result: var(golden_peak)/var(result_peak) * 100 (100 is perfect)
+- average_variance_percent_golden_over_result: var(golden_avg)/var(result_avg) * 100 (100 is perfect)
+- *_variance_match_percent: bounded variance similarity min(g/o, o/g) * 100 in [0,100]
+
+golden_box_count: 61
+compared_case_count: 1
+skipped_case_count: 2
+
+Case 1: ECTC_3D_1GPU_8high_110325_higherHTC_results.txt
+matched_boxes: 61/61
+peak_mean_absolute_error_c: 0.271356
+peak_root_mean_square_error_c: 0.354701
+peak_maximum_absolute_error_c: 1.202857
+peak_maximum_absolute_error_box: Power_Source.substrate.GPU
+average_mean_absolute_error_c: 0.250549
+average_root_mean_square_error_c: 0.384360
+average_maximum_absolute_error_c: 1.504804
+average_maximum_absolute_error_box: Power_Source.substrate.GPU.Dummy_Si_above_3
+peak_mean_absolute_error_score_percent: 71.43
+peak_root_mean_square_error_score_percent: 65.67
+peak_maximum_absolute_error_score_percent: 36.06
+average_mean_absolute_error_score_percent: 76.13
+average_root_mean_square_error_score_percent: 67.53
+average_maximum_absolute_error_score_percent: 34.69
+peak_variance_percent_golden_over_result: 67.32
+average_variance_percent_golden_over_result: 97.90
+peak_variance_match_percent: 67.32
+average_variance_match_percent: 97.90
+
+Skipped files note:
+Skipped files are excluded from compared metrics.
+Skipped file names:
+- ECTC_2p5D_1GPU_8high_110325_higherHTC_results.txt
+- ECTC_3D_1GPU_8high_120125_higherHTC_results.txt

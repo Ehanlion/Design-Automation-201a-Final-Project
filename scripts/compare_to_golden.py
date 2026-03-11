@@ -15,6 +15,30 @@ import sys
 from typing import Dict, List, Tuple
 
 RESULTS_RE = re.compile(r"results\s*=\s*(\{.*\})\s*$", re.DOTALL)
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+PROJECT_DIR = SCRIPT_DIR.parent
+
+
+def _resolve_existing_path(path_str: str) -> pathlib.Path:
+    p = pathlib.Path(path_str)
+    if p.is_absolute():
+        return p
+    cwd_candidate = (pathlib.Path.cwd() / p).resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    project_candidate = (PROJECT_DIR / p).resolve()
+    if project_candidate.exists():
+        return project_candidate
+    return project_candidate
+
+
+def _resolve_output_path(path_str: str) -> pathlib.Path:
+    p = pathlib.Path(path_str)
+    if p.is_absolute():
+        return p
+    if p.parent == pathlib.Path("."):
+        return (pathlib.Path.cwd() / p).resolve()
+    return (PROJECT_DIR / p).resolve()
 
 
 def _population_variance(values: List[float]) -> float:
@@ -177,11 +201,12 @@ def print_results(golden_count: int, compared_rows: List[dict], skipped_rows: Li
             print(
                 f"- {row['file_name']}: "
                 f"matched={row['matched_boxes']}, "
-                f"peak_mae={row['peak_mae_pct']:.2f}% ({row['peak_mae_C']:.6f} C), "
-                f"peak_max={row['peak_max_abs_pct']:.2f}% ({row['peak_max_abs_C']:.6f} C, {row['peak_max_box']}), "
-                f"avg_mae={row['avg_mae_pct']:.2f}% ({row['avg_mae_C']:.6f} C), "
-                f"avg_max={row['avg_max_abs_pct']:.2f}% ({row['avg_max_abs_C']:.6f} C, {row['avg_max_box']}), "
-                f"var_pct[g/o] peak={row['peak_var_golden_over_ours_pct']:.2f}% avg={row['avg_var_golden_over_ours_pct']:.2f}%"
+                f"peak_mean_absolute_error={row['peak_mae_C']:.6f} C ({row['peak_mae_pct']:.2f}%), "
+                f"peak_max_absolute_error={row['peak_max_abs_C']:.6f} C ({row['peak_max_abs_pct']:.2f}%, box={row['peak_max_box']}), "
+                f"average_mean_absolute_error={row['avg_mae_C']:.6f} C ({row['avg_mae_pct']:.2f}%), "
+                f"average_max_absolute_error={row['avg_max_abs_C']:.6f} C ({row['avg_max_abs_pct']:.2f}%, box={row['avg_max_box']}), "
+                f"variance_percent[g/o] peak={row['peak_var_golden_over_ours_pct']:.2f}% "
+                f"avg={row['avg_var_golden_over_ours_pct']:.2f}%"
             )
     else:
         print("No result files matched the golden box count.")
@@ -230,6 +255,91 @@ def write_csv(rows: List[dict], out_path: pathlib.Path) -> None:
         writer.writerows(rows)
 
 
+def write_summary_txt(
+    golden_count: int, compared_rows: List[dict], skipped_rows: List[dict], out_path: pathlib.Path
+) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w") as f:
+        f.write("# Golden comparison summary\n")
+        f.write("# One compared case per section. One metric per line.\n\n")
+        f.write("Metric definitions:\n")
+        f.write("- peak_mean_absolute_error_c: mean absolute error of peak temperatures (lower is better)\n")
+        f.write("- average_mean_absolute_error_c: mean absolute error of average temperatures (lower is better)\n")
+        f.write("- peak_root_mean_square_error_c / average_root_mean_square_error_c: RMS error in C (lower is better)\n")
+        f.write("- peak_maximum_absolute_error_c / average_maximum_absolute_error_c: worst-case absolute error in C (lower is better)\n")
+        f.write("- *_score_percent: 100/(1 + error/stddev_golden), so 100 is perfect and higher is better\n")
+        f.write("- peak_variance_percent_golden_over_result: var(golden_peak)/var(result_peak) * 100 (100 is perfect)\n")
+        f.write("- average_variance_percent_golden_over_result: var(golden_avg)/var(result_avg) * 100 (100 is perfect)\n")
+        f.write("- *_variance_match_percent: bounded variance similarity min(g/o, o/g) * 100 in [0,100]\n\n")
+        f.write(f"golden_box_count: {golden_count}\n")
+        f.write(f"compared_case_count: {len(compared_rows)}\n")
+        f.write(f"skipped_case_count: {len(skipped_rows)}\n\n")
+
+        for idx, row in enumerate(compared_rows, start=1):
+            f.write(f"Case {idx}: {row['file_name']}\n")
+            f.write(f"matched_boxes: {row['matched_boxes']}/{golden_count}\n")
+            f.write(f"peak_mean_absolute_error_c: {row['peak_mae_C']:.6f}\n")
+            f.write(f"peak_root_mean_square_error_c: {row['peak_rmse_C']:.6f}\n")
+            f.write(f"peak_maximum_absolute_error_c: {row['peak_max_abs_C']:.6f}\n")
+            f.write(f"peak_maximum_absolute_error_box: {row['peak_max_box']}\n")
+            f.write(f"average_mean_absolute_error_c: {row['avg_mae_C']:.6f}\n")
+            f.write(f"average_root_mean_square_error_c: {row['avg_rmse_C']:.6f}\n")
+            f.write(f"average_maximum_absolute_error_c: {row['avg_max_abs_C']:.6f}\n")
+            f.write(f"average_maximum_absolute_error_box: {row['avg_max_box']}\n")
+            f.write(f"peak_mean_absolute_error_score_percent: {row['peak_mae_pct']:.2f}\n")
+            f.write(f"peak_root_mean_square_error_score_percent: {row['peak_rmse_pct']:.2f}\n")
+            f.write(f"peak_maximum_absolute_error_score_percent: {row['peak_max_abs_pct']:.2f}\n")
+            f.write(f"average_mean_absolute_error_score_percent: {row['avg_mae_pct']:.2f}\n")
+            f.write(f"average_root_mean_square_error_score_percent: {row['avg_rmse_pct']:.2f}\n")
+            f.write(f"average_maximum_absolute_error_score_percent: {row['avg_max_abs_pct']:.2f}\n")
+            f.write(
+                f"peak_variance_percent_golden_over_result: {row['peak_var_golden_over_ours_pct']:.2f}\n"
+            )
+            f.write(
+                f"average_variance_percent_golden_over_result: {row['avg_var_golden_over_ours_pct']:.2f}\n"
+            )
+            f.write(f"peak_variance_match_percent: {row['peak_var_match_pct']:.2f}\n")
+            f.write(f"average_variance_match_percent: {row['avg_var_match_pct']:.2f}\n\n")
+
+        if skipped_rows:
+            f.write("Skipped files note:\n")
+            f.write("Skipped files are excluded from compared metrics.\n")
+            f.write("Skipped file names:\n")
+            for row in skipped_rows:
+                f.write(f"- {row['file_name']}\n")
+
+
+def _ensure_golden_results_file(golden_path: pathlib.Path) -> pathlib.Path:
+    """
+    Ensure golden *_results.txt exists.
+
+    If missing and the corresponding golden_output.txt exists, auto-convert it.
+    """
+    if golden_path.exists():
+        return golden_path
+
+    candidate_source = golden_path.with_name("golden_output.txt")
+    if not candidate_source.exists():
+        return golden_path
+
+    try:
+        from convert_golden_output import parse_golden, write_results_txt
+
+        entries = parse_golden(candidate_source)
+        if entries:
+            write_results_txt(golden_path, entries)
+            print(
+                "Golden results file not found; generated automatically: "
+                f"{candidate_source} -> {golden_path}"
+            )
+    except Exception as exc:
+        print(
+            f"WARNING: Failed to auto-generate golden results from {candidate_source}: {exc}",
+            file=sys.stderr,
+        )
+    return golden_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -247,11 +357,19 @@ def main() -> int:
         default="out_therm/golden_comparison.csv",
         help="Optional CSV output path for comparison rows.",
     )
+    parser.add_argument(
+        "--summary_txt",
+        default="out_therm/golden_comparison_summary.txt",
+        help="Human-readable one-line-per-result summary output path.",
+    )
     args = parser.parse_args()
 
-    golden_path = pathlib.Path(args.golden)
-    results_dir = pathlib.Path(args.results_dir)
-    csv_path = pathlib.Path(args.csv)
+    golden_path = _resolve_existing_path(args.golden)
+    results_dir = _resolve_existing_path(args.results_dir)
+    csv_path = _resolve_output_path(args.csv)
+    summary_txt_path = _resolve_output_path(args.summary_txt)
+
+    golden_path = _ensure_golden_results_file(golden_path)
 
     if not golden_path.exists():
         print(f"ERROR: Golden file not found: {golden_path}", file=sys.stderr)
@@ -312,9 +430,11 @@ def main() -> int:
 
     print_results(golden_count, compared_rows, skipped_rows)
     write_csv(compared_rows, csv_path)
+    write_summary_txt(golden_count, compared_rows, skipped_rows, summary_txt_path)
     if compared_rows:
         print("")
         print(f"Wrote comparison CSV: {csv_path}")
+    print(f"Wrote comparison summary TXT: {summary_txt_path}")
 
     return 0
 

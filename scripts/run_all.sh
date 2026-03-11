@@ -110,7 +110,8 @@ python3 "$SCRIPT_DIR/convert_golden_output.py" \
 python3 "$SCRIPT_DIR/compare_to_golden.py" \
   --golden "$PROJECT_DIR/solutions/golden_output_results.txt" \
   --results_dir "$PROJECT_DIR/out_therm" \
-  --csv "$PROJECT_DIR/out_therm/golden_comparison.csv"
+  --csv "$PROJECT_DIR/out_therm/golden_comparison.csv" \
+  --summary_txt "$PROJECT_DIR/out_therm/golden_comparison_summary.txt"
 
 echo ""
 echo "========================================"
