@@ -13,7 +13,7 @@ This submission was updated to match **Final Project v4**:
    - Backside conversion-loss injection is disabled for v4 behavior.
 2. **Golden reference integrated**
    - `solutions/golden_output.txt` is converted to `solutions/golden_output_results.txt`.
-   - `scripts/compare_to_golden.py` computes per-box correctness metrics against the golden case.
+   - `compare_to_golden.py` computes per-box correctness metrics against the golden case.
 3. **GPU/HBM power distribution changed**
    - Power is deposited in the **center z-plane** of each GPU/HBM die/tier (per v4 figure).
    - Implemented in `thermal_solver.py` voxel power assignment.
@@ -127,8 +127,8 @@ with the physics-only solver settings above.
 ./setup/setup.sh
 source .venv/bin/activate
 bash scripts/run_config2_3D_gpu_bottom.sh
-python3 scripts/convert_golden_output.py
-python3 scripts/compare_to_golden.py \
+python3 convert_golden_output.py
+python3 compare_to_golden.py \
   --golden solutions/golden_output_results.txt \
   --results_dir out_therm \
   --csv out_therm/golden_comparison.csv

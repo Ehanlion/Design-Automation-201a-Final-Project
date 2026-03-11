@@ -8,7 +8,6 @@ Only files with the same number of boxes as the golden reference are evaluated.
 import argparse
 import ast
 import csv
-import math
 import pathlib
 import re
 import sys
@@ -16,7 +15,7 @@ from typing import Dict, List, Tuple
 
 RESULTS_RE = re.compile(r"results\s*=\s*(\{.*\})\s*$", re.DOTALL)
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = SCRIPT_DIR
 
 
 def _resolve_existing_path(path_str: str) -> pathlib.Path:
@@ -48,15 +47,6 @@ def _population_variance(values: List[float]) -> float:
     return sum((v - mean) * (v - mean) for v in values) / len(values)
 
 
-def _ratio_pct(num: float, den: float) -> float:
-    # User-requested format: num/den * 100, with 100 meaning equal.
-    if den <= 0.0:
-        if num <= 0.0:
-            return 100.0
-        return float("inf")
-    return 100.0 * num / den
-
-
 def _ratio_match_pct(num: float, den: float) -> float:
     # Symmetric bounded similarity: 100 is perfect, 0 is worst.
     if num <= 0.0 and den <= 0.0:
@@ -67,12 +57,6 @@ def _ratio_match_pct(num: float, den: float) -> float:
     if r <= 0.0:
         return 0.0
     return 100.0 * min(r, 1.0 / r)
-
-
-def _error_score_pct(err: float, ref_scale: float) -> float:
-    # 100 is perfect (0 error). Ref scale uses golden standard deviation.
-    ref = max(ref_scale, 1e-12)
-    return 100.0 / (1.0 + (err / ref))
 
 
 def load_results_txt(path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
@@ -146,46 +130,24 @@ def summarize_deltas(golden: Dict[str, Tuple[float, float]], result: Dict[str, T
         result_peaks.append(r_peak)
         result_avgs.append(r_avg)
 
-    peak_max_box, peak_max_abs = max(peak_errs, key=lambda p: p[1])
-    avg_max_box, avg_max_abs = max(avg_errs, key=lambda p: p[1])
-
     peak_mae = sum(err for _, err in peak_errs) / len(peak_errs)
     avg_mae = sum(err for _, err in avg_errs) / len(avg_errs)
-
-    peak_rmse = math.sqrt(sum(err * err for _, err in peak_errs) / len(peak_errs))
-    avg_rmse = math.sqrt(sum(err * err for _, err in avg_errs) / len(avg_errs))
 
     peak_var_g = _population_variance(golden_peaks)
     peak_var_o = _population_variance(result_peaks)
     avg_var_g = _population_variance(golden_avgs)
     avg_var_o = _population_variance(result_avgs)
 
-    peak_std_g = math.sqrt(peak_var_g)
-    avg_std_g = math.sqrt(avg_var_g)
-
     return {
         "matched_boxes": len(common),
         "missing_boxes": len(missing),
         "extra_boxes": len(extra),
         "peak_mae_C": peak_mae,
-        "peak_rmse_C": peak_rmse,
-        "peak_max_abs_C": peak_max_abs,
-        "peak_max_box": peak_max_box,
         "avg_mae_C": avg_mae,
-        "avg_rmse_C": avg_rmse,
-        "avg_max_abs_C": avg_max_abs,
-        "avg_max_box": avg_max_box,
-        # Percentage metrics (100 = perfect)
-        "peak_mae_pct": _error_score_pct(peak_mae, peak_std_g),
-        "peak_rmse_pct": _error_score_pct(peak_rmse, peak_std_g),
-        "peak_max_abs_pct": _error_score_pct(peak_max_abs, peak_std_g),
-        "avg_mae_pct": _error_score_pct(avg_mae, avg_std_g),
-        "avg_rmse_pct": _error_score_pct(avg_rmse, avg_std_g),
-        "avg_max_abs_pct": _error_score_pct(avg_max_abs, avg_std_g),
-        # Requested variance percentage: var(golden)/var(ours) * 100
-        "peak_var_golden_over_ours_pct": _ratio_pct(peak_var_g, peak_var_o),
-        "avg_var_golden_over_ours_pct": _ratio_pct(avg_var_g, avg_var_o),
-        # Symmetric bounded variance match percentage
+        "peak_var_golden_C2": peak_var_g,
+        "peak_var_result_C2": peak_var_o,
+        "avg_var_golden_C2": avg_var_g,
+        "avg_var_result_C2": avg_var_o,
         "peak_var_match_pct": _ratio_match_pct(peak_var_g, peak_var_o),
         "avg_var_match_pct": _ratio_match_pct(avg_var_g, avg_var_o),
     }
@@ -201,12 +163,10 @@ def print_results(golden_count: int, compared_rows: List[dict], skipped_rows: Li
             print(
                 f"- {row['file_name']}: "
                 f"matched={row['matched_boxes']}, "
-                f"peak_mean_absolute_error={row['peak_mae_C']:.6f} C ({row['peak_mae_pct']:.2f}%), "
-                f"peak_max_absolute_error={row['peak_max_abs_C']:.6f} C ({row['peak_max_abs_pct']:.2f}%, box={row['peak_max_box']}), "
-                f"average_mean_absolute_error={row['avg_mae_C']:.6f} C ({row['avg_mae_pct']:.2f}%), "
-                f"average_max_absolute_error={row['avg_max_abs_C']:.6f} C ({row['avg_max_abs_pct']:.2f}%, box={row['avg_max_box']}), "
-                f"variance_percent[g/o] peak={row['peak_var_golden_over_ours_pct']:.2f}% "
-                f"avg={row['avg_var_golden_over_ours_pct']:.2f}%"
+                f"peak_mae={row['peak_mae_C']:.6f} C, "
+                f"avg_mae={row['avg_mae_C']:.6f} C, "
+                f"peak_variance_match={row['peak_var_match_pct']:.2f}% | 100.00% ideal, "
+                f"avg_variance_match={row['avg_var_match_pct']:.2f}% | 100.00% ideal"
             )
     else:
         print("No result files matched the golden box count.")
@@ -231,22 +191,12 @@ def write_csv(rows: List[dict], out_path: pathlib.Path) -> None:
         "missing_boxes",
         "extra_boxes",
         "peak_mae_C",
-        "peak_rmse_C",
-        "peak_max_abs_C",
-        "peak_max_box",
         "avg_mae_C",
-        "avg_rmse_C",
-        "avg_max_abs_C",
-        "avg_max_box",
-        "peak_mae_pct",
-        "peak_rmse_pct",
-        "peak_max_abs_pct",
-        "avg_mae_pct",
-        "avg_rmse_pct",
-        "avg_max_abs_pct",
-        "peak_var_golden_over_ours_pct",
-        "avg_var_golden_over_ours_pct",
+        "peak_var_golden_C2",
+        "peak_var_result_C2",
         "peak_var_match_pct",
+        "avg_var_golden_C2",
+        "avg_var_result_C2",
         "avg_var_match_pct",
     ]
     with out_path.open("w", newline="") as f:
@@ -255,58 +205,134 @@ def write_csv(rows: List[dict], out_path: pathlib.Path) -> None:
         writer.writerows(rows)
 
 
+def _format_value_with_ideal(actual: str, ideal: str) -> str:
+    return f"{actual} | {ideal} ideal"
+
+
+def _metric_definitions_txt() -> List[str]:
+    return [
+        "Metric definitions:",
+        "- matched_boxes: number of boxes shared after normalization; ideal = golden_box_count/golden_box_count",
+        "- peak_mean_absolute_error_c: mean_i(|result_peak_i - golden_peak_i|); ideal = 0.000000 C",
+        "- average_mean_absolute_error_c: mean_i(|result_avg_i - golden_avg_i|); ideal = 0.000000 C",
+        "- peak_variance_match_percent: 100 * min(var(result_peak)/var(golden_peak), var(golden_peak)/var(result_peak)); ideal = 100.00%",
+        "- average_variance_match_percent: 100 * min(var(result_avg)/var(golden_avg), var(golden_avg)/var(result_avg)); ideal = 100.00%",
+        "- *_variance_values_c2: raw variance values in C^2 used by the variance-match formula",
+    ]
+
+
 def write_summary_txt(
     golden_count: int, compared_rows: List[dict], skipped_rows: List[dict], out_path: pathlib.Path
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as f:
         f.write("# Golden comparison summary\n")
-        f.write("# One compared case per section. One metric per line.\n\n")
-        f.write("Metric definitions:\n")
-        f.write("- peak_mean_absolute_error_c: mean absolute error of peak temperatures (lower is better)\n")
-        f.write("- average_mean_absolute_error_c: mean absolute error of average temperatures (lower is better)\n")
-        f.write("- peak_root_mean_square_error_c / average_root_mean_square_error_c: RMS error in C (lower is better)\n")
-        f.write("- peak_maximum_absolute_error_c / average_maximum_absolute_error_c: worst-case absolute error in C (lower is better)\n")
-        f.write("- *_score_percent: 100/(1 + error/stddev_golden), so 100 is perfect and higher is better\n")
-        f.write("- peak_variance_percent_golden_over_result: var(golden_peak)/var(result_peak) * 100 (100 is perfect)\n")
-        f.write("- average_variance_percent_golden_over_result: var(golden_avg)/var(result_avg) * 100 (100 is perfect)\n")
-        f.write("- *_variance_match_percent: bounded variance similarity min(g/o, o/g) * 100 in [0,100]\n\n")
+        f.write("# One compared case per section. One metric per line.\n")
+        f.write("# Focused on grading-relevant correctness metrics only.\n\n")
+        for line in _metric_definitions_txt():
+            f.write(f"{line}\n")
+        f.write("\n")
         f.write(f"golden_box_count: {golden_count}\n")
         f.write(f"compared_case_count: {len(compared_rows)}\n")
         f.write(f"skipped_case_count: {len(skipped_rows)}\n\n")
 
         for idx, row in enumerate(compared_rows, start=1):
+            matched_actual = f"{row['matched_boxes']}/{golden_count}"
+            matched_ideal = f"{golden_count}/{golden_count}"
+            peak_mae_actual = f"{row['peak_mae_C']:.6f} C"
+            avg_mae_actual = f"{row['avg_mae_C']:.6f} C"
+            peak_var_match_actual = f"{row['peak_var_match_pct']:.2f}%"
+            avg_var_match_actual = f"{row['avg_var_match_pct']:.2f}%"
             f.write(f"Case {idx}: {row['file_name']}\n")
-            f.write(f"matched_boxes: {row['matched_boxes']}/{golden_count}\n")
-            f.write(f"peak_mean_absolute_error_c: {row['peak_mae_C']:.6f}\n")
-            f.write(f"peak_root_mean_square_error_c: {row['peak_rmse_C']:.6f}\n")
-            f.write(f"peak_maximum_absolute_error_c: {row['peak_max_abs_C']:.6f}\n")
-            f.write(f"peak_maximum_absolute_error_box: {row['peak_max_box']}\n")
-            f.write(f"average_mean_absolute_error_c: {row['avg_mae_C']:.6f}\n")
-            f.write(f"average_root_mean_square_error_c: {row['avg_rmse_C']:.6f}\n")
-            f.write(f"average_maximum_absolute_error_c: {row['avg_max_abs_C']:.6f}\n")
-            f.write(f"average_maximum_absolute_error_box: {row['avg_max_box']}\n")
-            f.write(f"peak_mean_absolute_error_score_percent: {row['peak_mae_pct']:.2f}\n")
-            f.write(f"peak_root_mean_square_error_score_percent: {row['peak_rmse_pct']:.2f}\n")
-            f.write(f"peak_maximum_absolute_error_score_percent: {row['peak_max_abs_pct']:.2f}\n")
-            f.write(f"average_mean_absolute_error_score_percent: {row['avg_mae_pct']:.2f}\n")
-            f.write(f"average_root_mean_square_error_score_percent: {row['avg_rmse_pct']:.2f}\n")
-            f.write(f"average_maximum_absolute_error_score_percent: {row['avg_max_abs_pct']:.2f}\n")
             f.write(
-                f"peak_variance_percent_golden_over_result: {row['peak_var_golden_over_ours_pct']:.2f}\n"
+                "matched_boxes: "
+                f"{_format_value_with_ideal(matched_actual, matched_ideal)}\n"
             )
             f.write(
-                f"average_variance_percent_golden_over_result: {row['avg_var_golden_over_ours_pct']:.2f}\n"
+                "peak_mean_absolute_error_c: "
+                f"{_format_value_with_ideal(peak_mae_actual, '0.000000 C')}\n"
             )
-            f.write(f"peak_variance_match_percent: {row['peak_var_match_pct']:.2f}\n")
-            f.write(f"average_variance_match_percent: {row['avg_var_match_pct']:.2f}\n\n")
+            f.write(
+                "average_mean_absolute_error_c: "
+                f"{_format_value_with_ideal(avg_mae_actual, '0.000000 C')}\n"
+            )
+            f.write(
+                "peak_variance_match_percent: "
+                f"{_format_value_with_ideal(peak_var_match_actual, '100.00%')}\n"
+            )
+            f.write(
+                "peak_variance_values_c2: "
+                f"result={row['peak_var_result_C2']:.6f}, golden={row['peak_var_golden_C2']:.6f}\n"
+            )
+            f.write(
+                "average_variance_match_percent: "
+                f"{_format_value_with_ideal(avg_var_match_actual, '100.00%')}\n"
+            )
+            f.write(
+                "average_variance_values_c2: "
+                f"result={row['avg_var_result_C2']:.6f}, golden={row['avg_var_golden_C2']:.6f}\n\n"
+            )
 
         if skipped_rows:
             f.write("Skipped files note:\n")
             f.write("Skipped files are excluded from compared metrics.\n")
-            f.write("Skipped file names:\n")
+            f.write("Skipped files:\n")
             for row in skipped_rows:
-                f.write(f"- {row['file_name']}\n")
+                f.write(f"- {row['file_name']}: {row['reason']}\n")
+
+
+def write_summary_md(
+    golden_count: int, compared_rows: List[dict], skipped_rows: List[dict], out_path: pathlib.Path
+) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w") as f:
+        f.write("# Golden Comparison Summary\n\n")
+        f.write("Focused on the grading-relevant correctness metrics only: distance from golden and variance match.\n\n")
+        f.write("## Metric Definitions\n\n")
+        f.write("| Metric | Calculation | Ideal |\n")
+        f.write("| --- | --- | --- |\n")
+        f.write("| Matched boxes | Shared box names after normalization | ")
+        f.write(f"`{golden_count}/{golden_count}` |\n")
+        f.write("| Peak MAE (C) | `mean_i(abs(result_peak_i - golden_peak_i))` | `0.000000` |\n")
+        f.write("| Average MAE (C) | `mean_i(abs(result_avg_i - golden_avg_i))` | `0.000000` |\n")
+        f.write("| Peak variance match (%) | `100 * min(var(result_peak)/var(golden_peak), var(golden_peak)/var(result_peak))` | `100.00%` |\n")
+        f.write("| Average variance match (%) | `100 * min(var(result_avg)/var(golden_avg), var(golden_avg)/var(result_avg))` | `100.00%` |\n")
+        f.write("\n")
+        f.write("## Overview\n\n")
+        f.write(f"- Golden box count: `{golden_count}`\n")
+        f.write(f"- Compared case count: `{len(compared_rows)}`\n")
+        f.write(f"- Skipped case count: `{len(skipped_rows)}`\n\n")
+
+        if compared_rows:
+            f.write("## Compared Cases\n\n")
+            for idx, row in enumerate(compared_rows, start=1):
+                f.write(f"### Case {idx}: `{row['file_name']}`\n\n")
+                f.write("| Metric | Result | Ideal | Notes |\n")
+                f.write("| --- | --- | --- | --- |\n")
+                f.write(
+                    f"| Matched boxes | `{row['matched_boxes']}/{golden_count}` | `{golden_count}/{golden_count}` | Same box count and normalized box names matched |\n"
+                )
+                f.write(
+                    f"| Peak MAE (C) | `{row['peak_mae_C']:.6f}` | `0.000000` | Lower is better |\n"
+                )
+                f.write(
+                    f"| Average MAE (C) | `{row['avg_mae_C']:.6f}` | `0.000000` | Lower is better |\n"
+                )
+                f.write(
+                    f"| Peak variance match (%) | `{row['peak_var_match_pct']:.2f}%` | `100.00%` | `var(result_peak)={row['peak_var_result_C2']:.6f}`, `var(golden_peak)={row['peak_var_golden_C2']:.6f}` |\n"
+                )
+                f.write(
+                    f"| Average variance match (%) | `{row['avg_var_match_pct']:.2f}%` | `100.00%` | `var(result_avg)={row['avg_var_result_C2']:.6f}`, `var(golden_avg)={row['avg_var_golden_C2']:.6f}` |\n\n"
+                )
+        else:
+            f.write("## Compared Cases\n\n")
+            f.write("No result files matched the golden box count.\n\n")
+
+        if skipped_rows:
+            f.write("## Skipped Files\n\n")
+            f.write("These files were excluded from the compared metrics.\n\n")
+            for row in skipped_rows:
+                f.write(f"- `{row['file_name']}`: {row['reason']}\n")
 
 
 def _ensure_golden_results_file(golden_path: pathlib.Path) -> pathlib.Path:
@@ -362,12 +388,18 @@ def main() -> int:
         default="out_therm/golden_comparison_summary.txt",
         help="Human-readable one-line-per-result summary output path.",
     )
+    parser.add_argument(
+        "--summary_md",
+        default="out_therm/golden_comparison_summary.md",
+        help="Formatted Markdown summary output path.",
+    )
     args = parser.parse_args()
 
     golden_path = _resolve_existing_path(args.golden)
     results_dir = _resolve_existing_path(args.results_dir)
     csv_path = _resolve_output_path(args.csv)
     summary_txt_path = _resolve_output_path(args.summary_txt)
+    summary_md_path = _resolve_output_path(args.summary_md)
 
     golden_path = _ensure_golden_results_file(golden_path)
 
@@ -431,10 +463,12 @@ def main() -> int:
     print_results(golden_count, compared_rows, skipped_rows)
     write_csv(compared_rows, csv_path)
     write_summary_txt(golden_count, compared_rows, skipped_rows, summary_txt_path)
+    write_summary_md(golden_count, compared_rows, skipped_rows, summary_md_path)
     if compared_rows:
         print("")
         print(f"Wrote comparison CSV: {csv_path}")
     print(f"Wrote comparison summary TXT: {summary_txt_path}")
+    print(f"Wrote comparison summary MD: {summary_md_path}")
 
     return 0
 
