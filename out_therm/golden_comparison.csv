@@ -1,2 +1,0 @@
-file_name,file_path,golden_boxes,result_boxes,matched_boxes,missing_boxes,extra_boxes,peak_mae_C,avg_mae_C,peak_var_golden_C2,peak_var_result_C2,peak_var_match_pct,avg_var_golden_C2,avg_var_result_C2,avg_var_match_pct
-ECTC_3D_1GPU_8high_110325_higherHTC_results.txt,/u/ee/ugrad/palatics/ee201a/final_project/out_therm/ECTC_3D_1GPU_8high_110325_higherHTC_results.txt,61,61,61,0,0,0.2713636557377052,0.2505475737704908,0.46027135235616345,0.683684828244858,67.32215391377967,0.6387607659655692,0.652490715508408,97.89576323210352

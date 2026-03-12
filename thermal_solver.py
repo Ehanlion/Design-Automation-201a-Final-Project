@@ -105,6 +105,14 @@ _LAST_SOLVE_SUMMARY = {
     "used_ngspice": False,
 }
 
+_REDUNDANT_REPORT_FILES = (
+    "summary.csv",
+    "summary.md",
+    "golden_comparison.csv",
+    "golden_comparison.md",
+    "golden_comparison_summary.md",
+)
+
 
 def _reset_last_solve_summary():
     _LAST_SOLVE_SUMMARY.update(
@@ -125,6 +133,21 @@ def _update_last_solve_summary(**kwargs):
 def get_last_solve_summary():
     """Return metadata from the most recent solve_thermal() call."""
     return dict(_LAST_SOLVE_SUMMARY)
+
+
+def _purge_redundant_reports(out_dir="out_therm"):
+    """Best-effort cleanup of redundant aggregate report artifacts."""
+    try:
+        base = Path(out_dir)
+    except Exception:
+        return
+    for name in _REDUNDANT_REPORT_FILES:
+        p = base / name
+        try:
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
 
 
 def _env_flag(name, default=False):
@@ -1656,6 +1679,7 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     dict : {box_name: (peak_T, avg_T, R_x, R_y, R_z), ...}
     """
     t0 = time.time()
+    _purge_redundant_reports()
     _reset_last_solve_summary()
 
     if tim_cond is not None:
