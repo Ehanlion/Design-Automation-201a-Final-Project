@@ -140,9 +140,18 @@ Visuals:
 
 ## Slide 10: Runtime and Closing
 
-- Verified `ngspice` solve times:
-  - 2.5D default case, `20880` nodes: about `92.31 s`
-  - 3D GPU-top case, `11718` nodes: about `30.31 s`
+- Runtime summary lines now reported per run:
+  - `total`: wall-clock (`sizing start -> simulation end`)
+  - `ngspice`: ngspice subprocess only
+  - `placement`: placement algorithm only
+  - `config`: sizing + placement (grading FoM)
+- Latest measured timings:
+  - `ECTC_3D_1GPU_8high_120125_higherHTC` (`11718` nodes):
+    - total `30.126 s`, ngspice `28.953 s`, placement `0.011 s`, config `0.023 s`
+  - `ECTC_3D_1GPU_8high_110325_higherHTC` (`11718` nodes):
+    - total `29.818 s`, ngspice `28.621 s`, placement `0.013 s`, config `0.025 s`
+  - `ECTC_2p5D_1GPU_8high_110325_higherHTC` (`20880` nodes):
+    - total `97.673 s`, ngspice `95.354 s`, placement `0.503 s`, config `1.014 s`
 - Main closing points:
   - non-uniform voxel mesh
   - explicit voxel resistance derivation

@@ -134,7 +134,7 @@ This confirms that the exported RC netlist is consistent with the internally ass
 
 ### 5.1 Current run summary
 
-From the current `out_therm/summary.md` results:
+From the current `out_therm/summary.md` / `out_therm/summary.csv` results:
 
 | Project | Hottest box | Peak temp (C) | GPU peak (C) | HBM peak (C) | Box count |
 | --- | --- | --- | --- | --- | --- |
@@ -148,7 +148,7 @@ The current golden comparison is available for the matching 3D reference case:
 
 `ECTC_3D_1GPU_8high_110325_higherHTC`
 
-From `out_therm/golden_comparison_summary.md`:
+From `out_therm/golden_comparison_summary.txt` and `out_therm/golden_comparison_summary.md`:
 
 - matched boxes: `61/61`
 - peak MAE: `0.271364 C`
@@ -160,23 +160,22 @@ These are the grading-relevant correctness metrics currently available from the 
 
 ## 6. Runtime Reporting
 
-We report runtime in two parts:
+The console now prints a four-line timing summary per run:
 
-1. **placement/sizing runtime**
-2. **thermal solve runtime**
+1. **total**: full wall-clock runtime (`sizing start -> simulation end`)
+2. **ngspice**: ngspice subprocess solve time only
+3. **placement**: placement algorithm time only
+4. **config**: sizing + placement (grading FoM time)
 
-This separation makes it easier to see both algorithmic overhead and the actual RC solve cost.
+Recent verified timings (March 11, 2026):
 
-Recent verified `ngspice` solve times on the current code:
+| Project | Voxel nodes | total (s) | ngspice (s) | placement (s) | config (s) |
+| --- | --- | --- | --- | --- | --- |
+| `ECTC_3D_1GPU_8high_120125_higherHTC` | `11718` | `30.126` | `28.953` | `0.011` | `0.023` |
+| `ECTC_3D_1GPU_8high_110325_higherHTC` | `11718` | `29.818` | `28.621` | `0.013` | `0.025` |
+| `ECTC_2p5D_1GPU_8high_110325_higherHTC` | `20880` | `97.673` | `95.354` | `0.503` | `1.014` |
 
-- `ECTC_2p5D_1GPU_8high_110325_higherHTC`
-  - mesh size: `20880` nodes
-  - `ngspice` solve time: about `92.31 s`
-- `ECTC_3D_1GPU_8high_120125_higherHTC`
-  - mesh size: `11718` nodes
-  - `ngspice` solve time: about `30.31 s`
-
-We also verified that enabling KLU materially improves `ngspice` runtime on intermediate meshes while preserving the same temperatures.
+This separates grading-relevant algorithm time (`config`) from thermal netlist solve time (`ngspice`) while still reporting full runtime (`total`).
 
 ## 7. Reproducible Flow
 
@@ -184,15 +183,16 @@ We also verified that enabling KLU materially improves `ngspice` runtime on inte
 ./setup/setup.sh
 source .venv/bin/activate
 
-bash scripts/run_config1_3D_gpu_top.sh
-bash scripts/run_config2_3D_gpu_bottom.sh
-bash scripts/run_config3_2p5D.sh
+bash scripts/run_all.sh
+bash scripts/summarize_all.sh
 
 python3 convert_golden_output.py
 python3 compare_to_golden.py \
   --golden solutions/golden_output_results.txt \
   --results_dir out_therm \
-  --csv out_therm/golden_comparison.csv
+  --csv out_therm/golden_comparison.csv \
+  --summary_txt out_therm/golden_comparison_summary.txt \
+  --summary_md out_therm/golden_comparison_summary.md
 ```
 
 ## 8. Deliverables Produced
@@ -212,7 +212,13 @@ Golden-comparison outputs:
 
 - `solutions/golden_output_results.txt`
 - `out_therm/golden_comparison.csv`
+- `out_therm/golden_comparison_summary.txt`
 - `out_therm/golden_comparison_summary.md`
+
+Aggregate run summaries:
+
+- `out_therm/summary.csv`
+- `out_therm/summary.md`
 
 ## 9. Main Final Takeaway
 
