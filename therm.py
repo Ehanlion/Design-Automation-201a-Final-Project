@@ -756,6 +756,28 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     calls simulator_simulate() and writes results to YAML. Supports 3D and
     2.5D configurations.
     """
+    def _remove_redundant_reports(output_dir):
+        """Delete aggregate summary artifacts not needed for final outputs."""
+        if not output_dir:
+            return
+        redundant = (
+            "summary.csv",
+            "summary.md",
+            "golden_comparison.csv",
+            "golden_comparison.md",
+            "golden_comparison_summary.md",
+        )
+        for name in redundant:
+            path = os.path.join(output_dir, name)
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                # Best-effort cleanup only; simulation outputs should proceed.
+                pass
+
+    _remove_redundant_reports(out_dir)
+
     chiplet_tree = parse_all_chiplets(therm_conf)
 
     # Override GPU power to the course-approved 270 W so it is explicit here
