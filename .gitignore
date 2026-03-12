@@ -41,3 +41,6 @@ output_*/
 # Py artifact from PLY
 lextab.py
 yacctab.py
+
+# Ignore the submission directory
+submission/
