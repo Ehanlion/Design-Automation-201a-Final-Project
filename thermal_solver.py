@@ -96,6 +96,37 @@ NETLIST_EXPORT_PATH = os.path.join("out_therm", "thermal_netlist.sp")
 BOX_NETLIST_EXPORT_PATH = os.path.join("out_therm", "thermal_box_netlist.sp")
 
 
+# Most recent solve metadata for concise run summaries in therm.py.
+_LAST_SOLVE_SUMMARY = {
+    "solver_mode": "unknown",
+    "solver_backend": "unknown",
+    "voxel_shape": None,
+    "voxel_count": 0,
+    "used_ngspice": False,
+}
+
+
+def _reset_last_solve_summary():
+    _LAST_SOLVE_SUMMARY.update(
+        {
+            "solver_mode": "unknown",
+            "solver_backend": "unknown",
+            "voxel_shape": None,
+            "voxel_count": 0,
+            "used_ngspice": False,
+        }
+    )
+
+
+def _update_last_solve_summary(**kwargs):
+    _LAST_SOLVE_SUMMARY.update(kwargs)
+
+
+def get_last_solve_summary():
+    """Return metadata from the most recent solve_thermal() call."""
+    return dict(_LAST_SOLVE_SUMMARY)
+
+
 def _env_flag(name, default=False):
     val = os.environ.get(name)
     if val is None:
@@ -987,6 +1018,7 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     # -----------------------------------------------------------------------
 
     ngspice_result = None
+    solver_backend = "box-matrix-fallback"
     ngspice_bin = _find_ngspice_binary()
     _configure_ngspice_environment(ngspice_bin)
 
@@ -998,11 +1030,15 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
             [_network_node_name(i) for i in range(N)],
             ngspice_bin=ngspice_bin,
         )
+        if ngspice_result is not None:
+            solver_backend = "box-ngspice-local"
 
     # -- Step 2: PySpice API (ngspice via PySpice interface) -----------------
     if ngspice_result is None and HAS_PYSPICE and circuit is not None:
         print("  [Solver 2/3] Attempting PySpice API (ngspice via PySpice) ...")
         ngspice_result = _solve_pyspice_ngspice(circuit, ngspice_bin=ngspice_bin)
+        if ngspice_result is not None:
+            solver_backend = "box-ngspice-pyspice"
 
     # Populate T_vec from whichever ngspice path succeeded
     if ngspice_result is not None:
@@ -1019,6 +1055,7 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
         print("  [Solver 3/3] Solving via custom RC linear-algebra solver "
               "(direct conductance-matrix assembly) ...")
         T_vec = _solve_box_network_matrix(N, G_pairs, P_vec, G_conv)
+        solver_backend = "box-matrix-fallback"
 
     # Extract results for the primary boxes only (not bonding/TIM auxiliaries)
     results = {}
@@ -1032,6 +1069,13 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
         # Box-level network: single temperature per node → peak == average
         results[box.name] = (T_node, T_node, Rx, Ry, Rz)
 
+    _update_last_solve_summary(
+        solver_mode="box-level",
+        solver_backend=solver_backend,
+        voxel_shape=None,
+        voxel_count=0,
+        used_ngspice=solver_backend.startswith("box-ngspice"),
+    )
     return results
 
 
@@ -1612,6 +1656,7 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     dict : {box_name: (peak_T, avg_T, R_x, R_y, R_z), ...}
     """
     t0 = time.time()
+    _reset_last_solve_summary()
 
     if tim_cond is not None:
         CONDUCTIVITY["TIM0p5"] = float(tim_cond)
@@ -1675,6 +1720,11 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     )
     nx, ny, nz = len(xe) - 1, len(ye) - 1, len(ze) - 1
     print(f"  Grid: {nx} x {ny} x {nz} = {nx * ny * nz} cells  ({time.time() - t0:.2f}s)")
+    _update_last_solve_summary(
+        solver_mode="voxel-rc",
+        voxel_shape=(int(nx), int(ny), int(nz)),
+        voxel_count=int(nx * ny * nz),
+    )
 
     kg = assign_materials(all_el, xe, ye, ze, layers, heatsink_obj, infill_k=infill_k)
     if isinstance(kg, tuple):
@@ -1699,9 +1749,22 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
         if HAS_SCIPY:
             print("  ngspice unavailable. Solving fallback (CG with Jacobi preconditioner) ...")
             Tg = _solve_sparse(kg, qg, xe, ye, ze, hc_eff)
+            _update_last_solve_summary(
+                solver_backend="voxel-cg-fallback",
+                used_ngspice=False,
+            )
         else:
             print("  ngspice unavailable. Solving fallback (numpy SOR) ...")
             Tg = _solve_iter(kg, qg, xe, ye, ze, hc_eff)
+            _update_last_solve_summary(
+                solver_backend="voxel-sor-fallback",
+                used_ngspice=False,
+            )
+    else:
+        _update_last_solve_summary(
+            solver_backend="voxel-ngspice-local",
+            used_ngspice=True,
+        )
     print(f"  Solve done          ({time.time() - t0:.2f}s)  "
           f"Tmin={Tg.min():.1f}  Tmax={Tg.max():.1f}")
 

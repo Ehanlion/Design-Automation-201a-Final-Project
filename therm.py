@@ -1794,8 +1794,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         simulation_end_time = time.time()
         simulation_runtime_s = simulation_end_time - simulation_start_time
         print("Simulation finished at ", simulation_end_time)
-        print(f"PySpice solve time: {simulation_runtime_s:.3f} seconds")
-        print(f"Total runtime: {runtime_excluding_simulation_s:.3f} seconds")
+        print(f"Simulation runtime (excluded from total runtime): {simulation_runtime_s:.3f} seconds")
+        print(f"Total runtime (pre-simulation): {runtime_excluding_simulation_s:.3f} seconds")
 
         print("Results written to txt and yaml — see out_dir for details.")
 
@@ -1828,6 +1828,25 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
                 )
             f.write("}\n")
         print(f"Results written to {txt_output_path}")
+
+        from thermal_solver import get_last_solve_summary
+        solve_summary = get_last_solve_summary()
+        solver_backend = solve_summary.get("solver_backend", "unknown")
+        voxel_count = solve_summary.get("voxel_count", 0)
+        voxel_shape = solve_summary.get("voxel_shape", None)
+        shape_txt = (
+            f"{voxel_shape[0]}x{voxel_shape[1]}x{voxel_shape[2]}"
+            if isinstance(voxel_shape, (list, tuple)) and len(voxel_shape) == 3
+            else "n/a"
+        )
+        print(
+            "Run summary | "
+            f"config={run_name} | "
+            f"pre_sim_s={runtime_excluding_simulation_s:.3f} | "
+            f"sim_s={simulation_runtime_s:.3f} | "
+            f"solver={solver_backend} | "
+            f"voxels={voxel_count} ({shape_txt})"
+        )
 
         return
 
