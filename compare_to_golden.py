@@ -40,6 +40,12 @@ def _resolve_output_path(path_str: str) -> pathlib.Path:
     return (PROJECT_DIR / p).resolve()
 
 
+def _resolve_optional_output_path(path_str: str) -> pathlib.Path:
+    if path_str is None:
+        return None
+    return _resolve_output_path(path_str)
+
+
 def _population_variance(values: List[float]) -> float:
     if not values:
         return 0.0
@@ -380,7 +386,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--csv",
-        default="out_therm/golden_comparison.csv",
+        default=None,
         help="Optional CSV output path for comparison rows.",
     )
     parser.add_argument(
@@ -390,16 +396,16 @@ def main() -> int:
     )
     parser.add_argument(
         "--summary_md",
-        default="out_therm/golden_comparison_summary.md",
+        default=None,
         help="Formatted Markdown summary output path.",
     )
     args = parser.parse_args()
 
     golden_path = _resolve_existing_path(args.golden)
     results_dir = _resolve_existing_path(args.results_dir)
-    csv_path = _resolve_output_path(args.csv)
+    csv_path = _resolve_optional_output_path(args.csv)
     summary_txt_path = _resolve_output_path(args.summary_txt)
-    summary_md_path = _resolve_output_path(args.summary_md)
+    summary_md_path = _resolve_optional_output_path(args.summary_md)
 
     golden_path = _ensure_golden_results_file(golden_path)
 
@@ -461,14 +467,17 @@ def main() -> int:
         compared_rows.append(row)
 
     print_results(golden_count, compared_rows, skipped_rows)
-    write_csv(compared_rows, csv_path)
+    if csv_path is not None:
+        write_csv(compared_rows, csv_path)
     write_summary_txt(golden_count, compared_rows, skipped_rows, summary_txt_path)
-    write_summary_md(golden_count, compared_rows, skipped_rows, summary_md_path)
-    if compared_rows:
+    if summary_md_path is not None:
+        write_summary_md(golden_count, compared_rows, skipped_rows, summary_md_path)
+    if compared_rows and csv_path is not None:
         print("")
         print(f"Wrote comparison CSV: {csv_path}")
     print(f"Wrote comparison summary TXT: {summary_txt_path}")
-    print(f"Wrote comparison summary MD: {summary_md_path}")
+    if summary_md_path is not None:
+        print(f"Wrote comparison summary MD: {summary_md_path}")
 
     return 0
 
