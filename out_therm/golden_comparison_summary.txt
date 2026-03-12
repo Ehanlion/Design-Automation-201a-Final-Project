@@ -12,7 +12,7 @@ Metric definitions:
 
 golden_box_count: 61
 compared_case_count: 1
-skipped_case_count: 2
+skipped_case_count: 3
 
 Case 1: ECTC_3D_1GPU_8high_110325_higherHTC_results.txt
 matched_boxes: 61/61 | 61/61 ideal
@@ -28,3 +28,4 @@ Skipped files are excluded from compared metrics.
 Skipped files:
 - ECTC_2p5D_1GPU_8high_110325_higherHTC_results.txt: boxes=57 (expected 61)
 - ECTC_3D_1GPU_8high_120125_higherHTC_results.txt: box names differ after normalization (common=2, expected=61)
+- TIMING_SUMMARY_CHECK_results.txt: box names differ after normalization (common=2, expected=61)
