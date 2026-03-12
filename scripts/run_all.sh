@@ -41,9 +41,9 @@ else
 fi
 
 if ngspice_ready; then
-    echo "Environment check: local ngspice is ready."
+    echo "Environment check: local pyspice is ready."
 else
-    echo "Environment check: local ngspice missing or not working."
+    echo "Environment check: local pyspice missing or not working."
     NEEDS_SETUP=1
 fi
 
@@ -59,7 +59,7 @@ if ! venv_ready; then
 fi
 
 if ! ngspice_ready; then
-    echo "ERROR: local ngspice is still unavailable after setup. Please check setup/install_local_ngspice.sh."
+    echo "ERROR: local pyspice is still unavailable after setup. Please check setup/install_local_ngspice.sh."
     exit 1
 fi
 

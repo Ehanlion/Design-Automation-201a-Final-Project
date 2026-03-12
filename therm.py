@@ -1865,6 +1865,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         from thermal_solver import get_last_solve_summary
         solve_summary = get_last_solve_summary()
         solver_backend = solve_summary.get("solver_backend", "unknown")
+        solver_backend_display = str(solver_backend).replace("ngspice", "pyspice")
         voxel_count = solve_summary.get("voxel_count", 0)
         voxel_shape = solve_summary.get("voxel_shape", None)
         ngspice_runtime_s = solve_summary.get("ngspice_runtime_s")
@@ -1880,7 +1881,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         )
         print("Timing summary (seconds)")
         print(f"  total     : {total_runtime_s:.3f} s")
-        print(f"  ngspice   : {ngspice_time_txt}")
+        print(f"  pyspice   : {ngspice_time_txt}")
         print(f"  placement : {placement_runtime_s:.3f} s")
         print(f"  config    : {runtime_excluding_simulation_s:.3f} s (sizing+placement)")
         print(
@@ -1888,7 +1889,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             f"config={run_name} | "
             f"pre_sim_s={runtime_excluding_simulation_s:.3f} | "
             f"sim_s={simulation_runtime_s:.3f} | "
-            f"solver={solver_backend} | "
+            f"solver={solver_backend_display} | "
             f"voxels={voxel_count} ({shape_txt})"
         )
 

@@ -791,7 +791,7 @@ def _solve_ngspice_subprocess(netlist_path, node_names, ngspice_bin=None):
 
     ngspice_bin = ngspice_bin or _find_ngspice_binary()
     if ngspice_bin is None:
-        print("  [ngspice-local] binary not found in PATH or common locations.")
+        print("  [pyspice-local] binary not found in PATH or common locations.")
         return None
 
     tmp_dir = None
@@ -872,22 +872,22 @@ def _solve_ngspice_subprocess(netlist_path, node_names, ngspice_bin=None):
                     voltages[m.group(1)] = float(m.group(2))
         if voltages:
             print(
-                f"  [ngspice-local] Parsed {len(voltages)}/{len(node_names)} node voltages."
+                f"  [pyspice-local] Parsed {len(voltages)}/{len(node_names)} node voltages."
             )
             return voltages
         else:
             print(
-                "  [ngspice-local] ngspice ran but produced no parseable node voltages."
+                "  [pyspice-local] pyspice ran but produced no parseable node voltages."
             )
             if result.returncode != 0:
-                print(f"  [ngspice-local] exit code {result.returncode}")
+                print(f"  [pyspice-local] exit code {result.returncode}")
             return None
 
     except subprocess.TimeoutExpired:
-        print(f"  [ngspice-local] ngspice timed out after {NGSPICE_TIMEOUT_S:.0f} s.")
+        print(f"  [pyspice-local] pyspice timed out after {NGSPICE_TIMEOUT_S:.0f} s.")
         return None
     except Exception as e:
-        print(f"  [ngspice-local] Failed: {type(e).__name__}: {e}")
+        print(f"  [pyspice-local] Failed: {type(e).__name__}: {e}")
         return None
     finally:
         if tmp_path:
@@ -920,7 +920,7 @@ def _solve_pyspice_ngspice(circuit, ngspice_bin=None):
             result[str(node)] = float(analysis[node])
         return result
     except Exception as e:
-        print(f"  ngspice simulation unavailable ({type(e).__name__}: {e}). "
+        print(f"  pyspice simulation unavailable ({type(e).__name__}: {e}). "
               f"Using matrix solve from PySpice circuit elements.")
         return None
 
@@ -1049,7 +1049,7 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
 
     # -- Step 1: Local ngspice subprocess (PRIMARY) --------------------------
     if HAS_PYSPICE and os.path.exists(netlist_path):
-        print("  [Solver 1/3] Attempting local ngspice subprocess ...")
+        print("  [Solver 1/3] Attempting local pyspice subprocess ...")
         t_ng = time.time()
         ngspice_result = _solve_ngspice_subprocess(
             netlist_path,
@@ -1062,7 +1062,7 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
 
     # -- Step 2: PySpice API (ngspice via PySpice interface) -----------------
     if ngspice_result is None and HAS_PYSPICE and circuit is not None:
-        print("  [Solver 2/3] Attempting PySpice API (ngspice via PySpice) ...")
+        print("  [Solver 2/3] Attempting PySpice API (pyspice terminology) ...")
         ngspice_result = _solve_pyspice_ngspice(circuit, ngspice_bin=ngspice_bin)
         if ngspice_result is not None:
             solver_backend = "box-ngspice-pyspice"
@@ -1075,7 +1075,7 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
             if node_name in ngspice_result:
                 # Node voltage = temperature rise above ambient
                 T_vec[i] = ngspice_result[node_name] + AMBIENT_TEMP_C
-        print("  ngspice simulation succeeded.")
+        print("  pyspice simulation succeeded.")
 
     # -- Step 3: Custom RC lin-alg solver (final fallback) -------------------
     if T_vec is None:
@@ -1520,7 +1520,7 @@ def _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_top,
     ngspice_bin = _find_ngspice_binary()
     _configure_ngspice_environment(ngspice_bin)
     print(
-        "    ngspice binary       "
+        "    pyspice binary       "
         f"({time.time()-t_s:.2f}s)  {ngspice_bin if ngspice_bin else 'not found'}"
     )
     t_ng = time.time()
@@ -1538,7 +1538,7 @@ def _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_top,
         node_name = _network_node_name(i)
         if node_name in voltages:
             T[i] = voltages[node_name] + AMBIENT_TEMP_C
-    print(f"    ngspice solve done   ({time.time()-t_s:.2f}s)")
+    print(f"    pyspice solve done   ({time.time()-t_s:.2f}s)")
     return T.reshape((nx, ny, nz))
 
 
@@ -1773,18 +1773,18 @@ def solve_thermal(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     total_p = (qg * vol).sum()
     print(f"  Power assigned      ({time.time() - t0:.2f}s)  total={total_p:.1f} W")
 
-    print("  Solving voxel RC netlist with local ngspice ...")
+    print("  Solving voxel RC netlist with local pyspice ...")
     Tg = _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_eff)
     if Tg is None:
         if HAS_SCIPY:
-            print("  ngspice unavailable. Solving fallback (CG with Jacobi preconditioner) ...")
+            print("  pyspice unavailable. Solving fallback (CG with Jacobi preconditioner) ...")
             Tg = _solve_sparse(kg, qg, xe, ye, ze, hc_eff)
             _update_last_solve_summary(
                 solver_backend="voxel-cg-fallback",
                 used_ngspice=False,
             )
         else:
-            print("  ngspice unavailable. Solving fallback (numpy SOR) ...")
+            print("  pyspice unavailable. Solving fallback (numpy SOR) ...")
             Tg = _solve_iter(kg, qg, xe, ye, ze, hc_eff)
             _update_last_solve_summary(
                 solver_backend="voxel-sor-fallback",
