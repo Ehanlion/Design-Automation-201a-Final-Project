@@ -1845,23 +1845,6 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             yaml.safe_dump(serializable_results, f, default_flow_style=False)
         print(f"Results written to {yaml_output_path}")
 
-        # Mirror the per-box dictionary in plain-text form for quick grading checks.
-        with open(txt_output_path, "w") as f:
-            f.write(
-                "# tuple format: "
-                "(peak_temperature_C, average_temperature_C, "
-                "thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)\n"
-            )
-            f.write("results = {\n")
-            for name in sorted(serializable_results):
-                peak, avg, r_x, r_y, r_z = serializable_results[name]
-                f.write(
-                    f'    "{name}": '
-                    f"({peak:.6f}, {avg:.6f}, {r_x:.6f}, {r_y:.6f}, {r_z:.6f}),\n"
-                )
-            f.write("}\n")
-        print(f"Results written to {txt_output_path}")
-
         from thermal_solver import get_last_solve_summary
         solve_summary = get_last_solve_summary()
         solver_backend = solve_summary.get("solver_backend", "unknown")
@@ -1879,6 +1862,31 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             if isinstance(voxel_shape, (list, tuple)) and len(voxel_shape) == 3
             else "n/a"
         )
+
+        # Mirror the per-box dictionary in plain-text form and include timing
+        # metadata so downstream summary scripts can report runtimes per config.
+        with open(txt_output_path, "w") as f:
+            f.write(
+                "# tuple format: "
+                "(peak_temperature_C, average_temperature_C, "
+                "thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)\n"
+            )
+            f.write(f"# run_name: {run_name}\n")
+            f.write(f"# total_runtime_s: {total_runtime_s:.6f}\n")
+            f.write(f"# pyspice_runtime_s: {ngspice_runtime_s:.6f}\n" if isinstance(ngspice_runtime_s, (float, int)) else "# pyspice_runtime_s: n/a\n")
+            f.write(f"# placement_runtime_s: {placement_runtime_s:.6f}\n")
+            f.write(f"# config_runtime_s: {runtime_excluding_simulation_s:.6f}\n")
+            f.write(f"# solver_backend: {solver_backend_display}\n")
+            f.write("results = {\n")
+            for name in sorted(serializable_results):
+                peak, avg, r_x, r_y, r_z = serializable_results[name]
+                f.write(
+                    f'    "{name}": '
+                    f"({peak:.6f}, {avg:.6f}, {r_x:.6f}, {r_y:.6f}, {r_z:.6f}),\n"
+                )
+            f.write("}\n")
+        print(f"Results written to {txt_output_path}")
+
         print("Timing summary (seconds)")
         print(f"  total     : {total_runtime_s:.3f} s")
         print(f"  pyspice   : {ngspice_time_txt}")

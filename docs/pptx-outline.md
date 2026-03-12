@@ -120,7 +120,7 @@ Visuals:
     - HBM peak: `122.3400 C`
 
 Visuals:
-- summary table from `out_therm/summary.md`
+- summary table from `out_therm/results.txt`
 - one thermal map image
 
 ## Slide 9: Correctness vs Golden

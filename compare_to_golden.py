@@ -11,9 +11,12 @@ import csv
 import pathlib
 import re
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 RESULTS_RE = re.compile(r"results\s*=\s*(\{.*\})\s*$", re.DOTALL)
+METADATA_RE = re.compile(r"^#\s*([A-Za-z0-9_]+)\s*:\s*(.*?)\s*$", re.MULTILINE)
+GPU_NAME_RE = re.compile(r"(?:^|\.)GPU$")
+HBM_NAME_RE = re.compile(r"(?:^|\.)HBM#\d+$")
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR
 
@@ -65,8 +68,7 @@ def _ratio_match_pct(num: float, den: float) -> float:
     return 100.0 * min(r, 1.0 / r)
 
 
-def load_results_txt(path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
-    text = path.read_text()
+def _parse_results_text(text: str, path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
     match = RESULTS_RE.search(text)
     if not match:
         raise ValueError(f"Could not find 'results = {{...}}' in {path}")
@@ -86,6 +88,16 @@ def load_results_txt(path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
             continue
         out[name] = (peak, avg)
     return out
+
+
+def load_results_txt(path: pathlib.Path) -> Dict[str, Tuple[float, float]]:
+    text = path.read_text()
+    return _parse_results_text(text, path)
+
+
+def load_results_metadata(path: pathlib.Path) -> Dict[str, str]:
+    text = path.read_text()
+    return {match.group(1): match.group(2) for match in METADATA_RE.finditer(text)}
 
 
 def normalize_name(name: str) -> str:
@@ -159,6 +171,59 @@ def summarize_deltas(golden: Dict[str, Tuple[float, float]], result: Dict[str, T
     }
 
 
+def _metadata_float(metadata: Dict[str, str], key: str) -> Optional[float]:
+    value = metadata.get(key)
+    if value in (None, "", "n/a"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def summarize_case_metrics(result: Dict[str, Tuple[float, float]]) -> dict:
+    peaks = [peak for peak, _ in result.values()]
+    avgs = [avg for _, avg in result.values()]
+
+    gpu_vals = [vals for name, vals in result.items() if GPU_NAME_RE.search(name)]
+    hbm_vals = [vals for name, vals in result.items() if HBM_NAME_RE.search(name)]
+
+    return {
+        "max_temp_gpu_C": max((peak for peak, _ in gpu_vals), default=None),
+        "max_temp_hbm_C": max((peak for peak, _ in hbm_vals), default=None),
+        "avg_temp_gpu_C": (
+            sum(avg for _, avg in gpu_vals) / len(gpu_vals) if gpu_vals else None
+        ),
+        "avg_temp_hbm_C": (
+            sum(avg for _, avg in hbm_vals) / len(hbm_vals) if hbm_vals else None
+        ),
+        "peak_variance_c2": _population_variance(peaks),
+        "average_variance_c2": _population_variance(avgs),
+    }
+
+
+def build_case_row(
+    file_name: str,
+    file_path: str,
+    result: Dict[str, Tuple[float, float]],
+    metadata: Dict[str, str],
+) -> dict:
+    config_name = file_name[:-12] if file_name.endswith("_results.txt") else file_name
+    pyspice_runtime_s = _metadata_float(metadata, "pyspice_runtime_s")
+    if pyspice_runtime_s is None:
+        pyspice_runtime_s = _metadata_float(metadata, "ngspice_runtime_s")
+    return {
+        "file_name": file_name,
+        "file_path": file_path,
+        "config_name": config_name,
+        "result_boxes": len(result),
+        "total_runtime_s": _metadata_float(metadata, "total_runtime_s"),
+        "pyspice_runtime_s": pyspice_runtime_s,
+        "placement_runtime_s": _metadata_float(metadata, "placement_runtime_s"),
+        **summarize_case_metrics(result),
+    }
+
+
 def print_results(golden_count: int, compared_rows: List[dict], skipped_rows: List[dict]) -> None:
     print(f"Golden boxes: {golden_count}")
     print("")
@@ -206,7 +271,7 @@ def write_csv(rows: List[dict], out_path: pathlib.Path) -> None:
         "avg_var_match_pct",
     ]
     with out_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -227,11 +292,76 @@ def _metric_definitions_txt() -> List[str]:
     ]
 
 
+def _format_optional_celsius(value: Optional[float]) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.6f} C"
+
+
+def _format_optional_c2(value: Optional[float]) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.6f} C^2"
+
+
+def _format_optional_seconds(value: Optional[float]) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.3f} s"
+
+
 def write_summary_txt(
-    golden_count: int, compared_rows: List[dict], skipped_rows: List[dict], out_path: pathlib.Path
+    golden: Dict[str, Tuple[float, float]],
+    case_rows: List[dict],
+    golden_count: int,
+    compared_rows: List[dict],
+    skipped_rows: List[dict],
+    out_path: pathlib.Path,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    golden_metrics = summarize_case_metrics(golden)
     with out_path.open("w") as f:
+        f.write("# Results Summary\n\n")
+
+        f.write("case/config: golden\n")
+        f.write(f"max temp gpu: {_format_optional_celsius(golden_metrics['max_temp_gpu_C'])}\n")
+        f.write(f"max temp hbm: {_format_optional_celsius(golden_metrics['max_temp_hbm_C'])}\n")
+        f.write(f"avg temp gpu: {_format_optional_celsius(golden_metrics['avg_temp_gpu_C'])}\n")
+        f.write(f"avg temp hbm: {_format_optional_celsius(golden_metrics['avg_temp_hbm_C'])}\n")
+        f.write(f"peak variance: {_format_optional_c2(golden_metrics['peak_variance_c2'])}\n")
+        f.write(f"average variance: {_format_optional_c2(golden_metrics['average_variance_c2'])}\n")
+        f.write("total time: n/a\n")
+        f.write("pyspice time: n/a\n")
+        f.write("placement time: n/a\n\n")
+
+        for row in case_rows:
+            f.write(f"case/config: {row['config_name']}\n")
+            f.write(f"max temp gpu: {_format_optional_celsius(row['max_temp_gpu_C'])}\n")
+            f.write(f"max temp hbm: {_format_optional_celsius(row['max_temp_hbm_C'])}\n")
+            f.write(f"avg temp gpu: {_format_optional_celsius(row['avg_temp_gpu_C'])}\n")
+            f.write(f"avg temp hbm: {_format_optional_celsius(row['avg_temp_hbm_C'])}\n")
+            f.write(f"peak variance: {_format_optional_c2(row['peak_variance_c2'])}\n")
+            f.write(f"average variance: {_format_optional_c2(row['average_variance_c2'])}\n")
+            f.write(f"total time: {_format_optional_seconds(row['total_runtime_s'])}\n")
+            f.write(f"pyspice time: {_format_optional_seconds(row['pyspice_runtime_s'])}\n")
+            f.write(f"placement time: {_format_optional_seconds(row['placement_runtime_s'])}\n")
+
+            if row["comparison_status"] == "compared":
+                f.write(
+                    f"matched boxes: {row['matched_boxes']}/{row['golden_boxes']}\n"
+                )
+                f.write(f"peak mae vs golden: {row['peak_mae_C']:.6f} C\n")
+                f.write(f"average mae vs golden: {row['avg_mae_C']:.6f} C\n")
+                f.write(
+                    f"peak variance match vs golden: {row['peak_var_match_pct']:.2f}%\n"
+                )
+                f.write(
+                    f"average variance match vs golden: {row['avg_var_match_pct']:.2f}%\n"
+                )
+            else:
+                f.write(f"golden comparison: skipped ({row['comparison_reason']})\n")
+            f.write("\n")
+
         f.write("# Golden comparison summary\n")
         f.write("# One compared case per section. One metric per line.\n")
         f.write("# Focused on grading-relevant correctness metrics only.\n\n")
@@ -391,8 +521,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--summary_txt",
-        default="out_therm/golden_comparison_summary.txt",
-        help="Human-readable one-line-per-result summary output path.",
+        default="out_therm/results.txt",
+        help="Human-readable summary output path.",
     )
     parser.add_argument(
         "--summary_md",
@@ -425,51 +555,57 @@ def main() -> int:
 
     compared_rows: List[dict] = []
     skipped_rows: List[dict] = []
+    case_rows: List[dict] = []
 
     for result_path in sorted(results_dir.glob("*_results.txt")):
+        metadata = load_results_metadata(result_path)
         result = load_results_txt(result_path)
         result = normalize_results(result, result_path)
         result_count = len(result)
+        row = build_case_row(result_path.name, str(result_path), result, metadata)
         if result_count != golden_count:
-            skipped_rows.append(
-                {
-                    "file_name": result_path.name,
-                    "file_path": str(result_path),
-                    "box_count": result_count,
-                    "reason": f"boxes={result_count} (expected {golden_count})",
-                }
-            )
+            reason = f"boxes={result_count} (expected {golden_count})"
+            skipped_rows.append({"file_name": result_path.name, "file_path": str(result_path), "box_count": result_count, "reason": reason})
+            row["comparison_status"] = "skipped"
+            row["comparison_reason"] = reason
+            case_rows.append(row)
             continue
 
         common_count = len(set(golden) & set(result))
         if common_count != golden_count:
-            skipped_rows.append(
-                {
-                    "file_name": result_path.name,
-                    "file_path": str(result_path),
-                    "box_count": result_count,
-                    "reason": (
-                        f"box names differ after normalization "
-                        f"(common={common_count}, expected={golden_count})"
-                    ),
-                }
+            reason = (
+                f"box names differ after normalization "
+                f"(common={common_count}, expected={golden_count})"
             )
+            skipped_rows.append({"file_name": result_path.name, "file_path": str(result_path), "box_count": result_count, "reason": reason})
+            row["comparison_status"] = "skipped"
+            row["comparison_reason"] = reason
+            case_rows.append(row)
             continue
 
         metrics = summarize_deltas(golden, result)
-        row = {
-            "file_name": result_path.name,
-            "file_path": str(result_path),
+        row.update(
+            {
             "golden_boxes": golden_count,
-            "result_boxes": result_count,
             **metrics,
-        }
+            "comparison_status": "compared",
+            "comparison_reason": "",
+            }
+        )
         compared_rows.append(row)
+        case_rows.append(row)
 
     print_results(golden_count, compared_rows, skipped_rows)
     if csv_path is not None:
         write_csv(compared_rows, csv_path)
-    write_summary_txt(golden_count, compared_rows, skipped_rows, summary_txt_path)
+    write_summary_txt(
+        golden,
+        case_rows,
+        golden_count,
+        compared_rows,
+        skipped_rows,
+        summary_txt_path,
+    )
     if summary_md_path is not None:
         write_summary_md(golden_count, compared_rows, skipped_rows, summary_md_path)
     if compared_rows and csv_path is not None:

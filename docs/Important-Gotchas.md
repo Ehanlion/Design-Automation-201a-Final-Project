@@ -83,7 +83,7 @@ Each call to `python3 therm.py --project_name NAME --out_dir out_therm` produces
 - `therm.py` and all Python dependencies
 - `configs/` (all XML system configs, bonding, heatsink, layer definitions)
 - `setup/` (requirements.txt + setup.sh)
-- `scripts/` (run_all.sh, run_config*.sh, summarize_all.sh, make_submission_tar.sh)
+- `scripts/` (run_all.sh, run_config*.sh, make_submission_tar.sh)
 
 The tar maintains the `GroupName/` directory structure; untarring creates a
 self-contained directory from which `bash scripts/run_all.sh` works directly.

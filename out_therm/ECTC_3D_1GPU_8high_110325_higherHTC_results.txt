@@ -1,4 +1,10 @@
 # tuple format: (peak_temperature_C, average_temperature_C, thermal_resistance_x, thermal_resistance_y, thermal_resistance_z)
+# run_name: ECTC_3D_1GPU_8high_110325_higherHTC
+# total_runtime_s: 29.415430
+# pyspice_runtime_s: 28.282035
+# placement_runtime_s: 0.011627
+# config_runtime_s: 0.023355
+# solver_backend: voxel-pyspice-local
 results = {
     "Power_Source": (125.300077, 124.453325, 3.179156, 5.132894, 0.002439),
     "Power_Source.substrate": (126.056314, 124.468815, 6.274916, 10.131144, 0.004794),

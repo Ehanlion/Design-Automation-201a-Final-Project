@@ -5,7 +5,7 @@
 #   - therm.py and all its Python dependencies
 #   - configs/ directory (all XML files needed by therm.py and run scripts)
 #   - setup/ directory (requirements.txt + setup.sh for environment setup)
-#   - scripts/ — run_all.sh, run_config*.sh, summarize_all.sh, and this script
+#   - scripts/ — run_all.sh, run_config*.sh, and this script
 #
 # Report/Slides are optional: place Report.pdf and Slides.pptx in lab_files/
 # or docs/ and they will be included automatically.
@@ -17,7 +17,6 @@
 #   cd GroupName
 #   bash setup/setup.sh           # (optional: create venv)
 #   bash scripts/run_all.sh       # runs all 3 configs
-#   bash scripts/summarize_all.sh # summarises results
 #
 # PIN is fixed to 1234 per submission request.
 
@@ -50,7 +49,6 @@ PY_FILES=(
   heatsink_xml_parser.py
   rearrange.py
   visualize_results.py
-  summarize_results.py
   lextab.py
   yacctab.py
 )
@@ -96,7 +94,7 @@ copy_dir "SPICE/therm configs" "configs"
 copy_dir "environment setup"   "setup"
 
 # ---------------------------------------------------------------------------
-# scripts/ — run scripts, summarize, and this packaging script itself
+# scripts/ — run scripts and this packaging script itself
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Run scripts ---"
@@ -106,7 +104,6 @@ SCRIPT_FILES=(
   run_config1_3D_gpu_top.sh
   run_config2_3D_gpu_bottom.sh
   run_config3_2p5D.sh
-  summarize_all.sh
 )
 for f in "${SCRIPT_FILES[@]}"; do
   if [[ -f "$ROOT_DIR/scripts/$f" ]]; then

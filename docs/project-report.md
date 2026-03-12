@@ -134,7 +134,7 @@ This confirms that the exported RC netlist is consistent with the internally ass
 
 ### 5.1 Current run summary
 
-From the current `out_therm/summary.md` / `out_therm/summary.csv` results:
+From the current `out_therm/results.txt` results:
 
 | Project | Hottest box | Peak temp (C) | GPU peak (C) | HBM peak (C) | Box count |
 | --- | --- | --- | --- | --- | --- |
@@ -148,7 +148,7 @@ The current golden comparison is available for the matching 3D reference case:
 
 `ECTC_3D_1GPU_8high_110325_higherHTC`
 
-From `out_therm/golden_comparison_summary.txt` and `out_therm/golden_comparison_summary.md`:
+From `out_therm/results.txt`:
 
 - matched boxes: `61/61`
 - peak MAE: `0.271364 C`
@@ -184,15 +184,13 @@ This separates grading-relevant algorithm time (`config`) from thermal netlist s
 source .venv/bin/activate
 
 bash scripts/run_all.sh
-bash scripts/summarize_all.sh
 
 python3 convert_golden_output.py
 python3 compare_to_golden.py \
   --golden solutions/golden_output_results.txt \
   --results_dir out_therm \
   --csv out_therm/golden_comparison.csv \
-  --summary_txt out_therm/golden_comparison_summary.txt \
-  --summary_md out_therm/golden_comparison_summary.md
+  --summary_txt out_therm/results.txt
 ```
 
 ## 8. Deliverables Produced
@@ -212,13 +210,7 @@ Golden-comparison outputs:
 
 - `solutions/golden_output_results.txt`
 - `out_therm/golden_comparison.csv`
-- `out_therm/golden_comparison_summary.txt`
-- `out_therm/golden_comparison_summary.md`
-
-Aggregate run summaries:
-
-- `out_therm/summary.csv`
-- `out_therm/summary.md`
+- `out_therm/results.txt`
 
 ## 9. Main Final Takeaway
 
