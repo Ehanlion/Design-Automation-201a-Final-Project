@@ -1,0 +1,30 @@
+# Golden comparison summary
+# One compared case per section. One metric per line.
+# Focused on grading-relevant correctness metrics only.
+
+Metric definitions:
+- matched_boxes: number of boxes shared after normalization; ideal = golden_box_count/golden_box_count
+- peak_mean_absolute_error_c: mean_i(|result_peak_i - golden_peak_i|); ideal = 0.000000 C
+- average_mean_absolute_error_c: mean_i(|result_avg_i - golden_avg_i|); ideal = 0.000000 C
+- peak_variance_match_percent: 100 * min(var(result_peak)/var(golden_peak), var(golden_peak)/var(result_peak)); ideal = 100.00%
+- average_variance_match_percent: 100 * min(var(result_avg)/var(golden_avg), var(golden_avg)/var(result_avg)); ideal = 100.00%
+- *_variance_values_c2: raw variance values in C^2 used by the variance-match formula
+
+golden_box_count: 61
+compared_case_count: 1
+skipped_case_count: 2
+
+Case 1: ECTC_3D_1GPU_8high_110325_higherHTC_results.txt
+matched_boxes: 61/61 | 61/61 ideal
+peak_mean_absolute_error_c: 0.271364 C | 0.000000 C ideal
+average_mean_absolute_error_c: 0.250548 C | 0.000000 C ideal
+peak_variance_match_percent: 67.32% | 100.00% ideal
+peak_variance_values_c2: result=0.683685, golden=0.460271
+average_variance_match_percent: 97.90% | 100.00% ideal
+average_variance_values_c2: result=0.652491, golden=0.638761
+
+Skipped files note:
+Skipped files are excluded from compared metrics.
+Skipped files:
+- ECTC_2p5D_1GPU_8high_110325_higherHTC_results.txt: boxes=57 (expected 61)
+- ECTC_3D_1GPU_8high_120125_higherHTC_results.txt: box names differ after normalization (common=2, expected=61)
