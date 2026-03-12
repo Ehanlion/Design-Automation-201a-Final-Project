@@ -32,6 +32,7 @@ import os
 import pickle
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -775,6 +776,15 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
             except OSError:
                 # Best-effort cleanup only; simulation outputs should proceed.
                 pass
+
+    def _format_local_timestamp(ts):
+        """Render a local wall-clock timestamp with millisecond precision."""
+        return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    def _print_timing_event(label, event_ts, sizing_anchor_ts):
+        """Print event offset from sizing start."""
+        offset_s = event_ts - sizing_anchor_ts
+        print(f"{label:<26} t={offset_s:.3f}s")
 
     _remove_redundant_reports(out_dir)
 
@@ -1555,13 +1565,14 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     # dedeepyo : 28-Jan-2025 : Assigning recursive fake chiplet sizing.
     fake_chiplet_size_dict = {}
     sizing_start_time = time.time()
-    print("Starting sizing at ", sizing_start_time)
+    print(f"Run start time: {_format_local_timestamp(sizing_start_time)}")
+    _print_timing_event("Sizing start", sizing_start_time, sizing_start_time)
     boxes_unique = []
     determine_sizing_recursive(boxes_unique, None, chiplet_tree, 0.0, fake_chiplet_size_dict)
     sizing_end_time = time.time()
     sizing_runtime_s = sizing_end_time - sizing_start_time
-    print("Sizing done at ", sizing_end_time)
-    print("Sizing runtime (s): ", sizing_runtime_s)
+    _print_timing_event("Sizing end", sizing_end_time, sizing_start_time)
+    print(f"Sizing runtime               {sizing_runtime_s:8.3f} s")
     # time.sleep(5)
     # dedeepyo : 29-Jan-2025
     # print(fake_chiplet_size_dict)
@@ -1577,15 +1588,15 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     # dedeepyo : 29-Jan-2025 #
 
     placement_start_time = time.time()
-    print("Starting placement at ", placement_start_time)
+    _print_timing_event("Placement start", placement_start_time, sizing_start_time)
     boxes = []
     determine_placements_recursive(boxes, None, chiplet_tree, 0.0)
     placement_end_time = time.time()
     placement_runtime_s = placement_end_time - placement_start_time
-    print("Placement done at ", placement_end_time)
-    print("Placement runtime (s): ", placement_runtime_s)
+    _print_timing_event("Placement end", placement_end_time, sizing_start_time)
+    print(f"Placement runtime            {placement_runtime_s:8.3f} s")
     runtime_excluding_simulation_s = sizing_runtime_s + placement_runtime_s
-    print("Total runtime (pre-simulation): ", runtime_excluding_simulation_s)
+    print(f"Config total (pre-sim)       {runtime_excluding_simulation_s:8.3f} s")
 
     # dedeepyo : 18-Nov-2024 : Implementing checker for fake chiplet.
     # If the chiplet is a fake chiplet, we need to remove it from the list of boxes.
@@ -1791,7 +1802,7 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
 
     if not is_repeat:
         simulation_start_time = time.time()
-        print("Starting simulation at ", simulation_start_time)
+        _print_timing_event("Simulation start", simulation_start_time, sizing_start_time)
 
         # TODO: PROJECT - simulator_simulate() is called here; implement thermal solver above.
         results = simulator_simulate(
@@ -1815,9 +1826,9 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         
         simulation_end_time = time.time()
         simulation_runtime_s = simulation_end_time - simulation_start_time
-        print("Simulation finished at ", simulation_end_time)
-        print(f"Simulation runtime (excluded from total runtime): {simulation_runtime_s:.3f} seconds")
-        print(f"Total runtime (pre-simulation): {runtime_excluding_simulation_s:.3f} seconds")
+        total_runtime_s = simulation_end_time - sizing_start_time
+        _print_timing_event("Simulation end", simulation_end_time, sizing_start_time)
+        print(f"Simulation runtime           {simulation_runtime_s:8.3f} s")
 
         print("Results written to txt and yaml — see out_dir for details.")
 
@@ -1856,11 +1867,22 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         solver_backend = solve_summary.get("solver_backend", "unknown")
         voxel_count = solve_summary.get("voxel_count", 0)
         voxel_shape = solve_summary.get("voxel_shape", None)
+        ngspice_runtime_s = solve_summary.get("ngspice_runtime_s")
+        ngspice_time_txt = (
+            f"{ngspice_runtime_s:.3f} s"
+            if isinstance(ngspice_runtime_s, (float, int))
+            else "n/a"
+        )
         shape_txt = (
             f"{voxel_shape[0]}x{voxel_shape[1]}x{voxel_shape[2]}"
             if isinstance(voxel_shape, (list, tuple)) and len(voxel_shape) == 3
             else "n/a"
         )
+        print("Timing summary (seconds)")
+        print(f"  total     : {total_runtime_s:.3f} s")
+        print(f"  ngspice   : {ngspice_time_txt}")
+        print(f"  placement : {placement_runtime_s:.3f} s")
+        print(f"  config    : {runtime_excluding_simulation_s:.3f} s (sizing+placement)")
         print(
             "Run summary | "
             f"config={run_name} | "

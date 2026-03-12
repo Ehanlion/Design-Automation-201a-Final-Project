@@ -103,6 +103,7 @@ _LAST_SOLVE_SUMMARY = {
     "voxel_shape": None,
     "voxel_count": 0,
     "used_ngspice": False,
+    "ngspice_runtime_s": None,
 }
 
 _REDUNDANT_REPORT_FILES = (
@@ -122,6 +123,7 @@ def _reset_last_solve_summary():
             "voxel_shape": None,
             "voxel_count": 0,
             "used_ngspice": False,
+            "ngspice_runtime_s": None,
         }
     )
 
@@ -1048,11 +1050,13 @@ def solve_thermal_pyspice(boxes, bonding_boxes, tim_boxes, heatsink_obj, layers,
     # -- Step 1: Local ngspice subprocess (PRIMARY) --------------------------
     if HAS_PYSPICE and os.path.exists(netlist_path):
         print("  [Solver 1/3] Attempting local ngspice subprocess ...")
+        t_ng = time.time()
         ngspice_result = _solve_ngspice_subprocess(
             netlist_path,
             [_network_node_name(i) for i in range(N)],
             ngspice_bin=ngspice_bin,
         )
+        _update_last_solve_summary(ngspice_runtime_s=time.time() - t_ng)
         if ngspice_result is not None:
             solver_backend = "box-ngspice-local"
 
@@ -1519,11 +1523,13 @@ def _solve_voxel_ngspice(kg, qg, xe, ye, ze, hc_top,
         "    ngspice binary       "
         f"({time.time()-t_s:.2f}s)  {ngspice_bin if ngspice_bin else 'not found'}"
     )
+    t_ng = time.time()
     voltages = _solve_ngspice_subprocess(
         netlist_path,
         [_network_node_name(i) for i in range(N)],
         ngspice_bin=ngspice_bin,
     )
+    _update_last_solve_summary(ngspice_runtime_s=time.time() - t_ng)
     if voltages is None:
         return None
 
