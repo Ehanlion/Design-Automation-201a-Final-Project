@@ -2,17 +2,15 @@
 Thermal analysis tool for 2.5-D and 3-D GPU + HBM chiplet systems.
 
 Uses click to parse thermal configs, performs chiplet placement and sizing,
-and runs a PySpice-based thermal resistance network simulation.
+and runs an ngspice-first thermal resistance network simulation.
 
 SOLVER ARCHITECTURE:
-  The thermal solve (simulator_simulate → thermal_solver.solve_thermal) uses
-  PySpice as the primary interface for building and solving the resistor
-  network (per project requirement and Piazza course-staff guidance):
-    "use Pyspice either as an API call or by dumping out netlist"
-  If PySpice or ngspice is unavailable the solver falls back to a direct
-  matrix assembly (scipy sparse CG or numpy SOR) using the same network
-  topology extracted from the PySpice circuit.  thermal_solver.py is kept
-  intact and is NOT replaced.
+  The thermal solve (simulator_simulate → thermal_solver.solve_thermal)
+  builds a meshed voxel RC network, exports it as a SPICE netlist, and uses
+  the project-local ngspice binary as the first-choice solver. This matches
+  the project requirement that the RC netlist solving be done with ngspice.
+  If ngspice is unavailable or fails, the code falls back to a direct matrix
+  solve (scipy sparse CG or numpy SOR) using the same voxel-network physics.
 
 SIMULATION TIMING EXCLUSION:
   The project figure-of-merit runtime covers only sizing and placement — NOT
@@ -58,6 +56,7 @@ from heatsink_xml_parser import *
 # The XML configs carry this as core_power=270; we override explicitly below
 # so the value is unambiguous regardless of XML content.
 GPU_DEFAULT_POWER_W = 270.0
+POWER_SOURCE_POWER_W = 0.0
 
 sns.set()
 
@@ -87,20 +86,16 @@ def simulator_simulate(
     Solve the thermal resistance network and return per-box temperature results.
 
     Delegates to thermal_solver.solve_thermal() which implements the following
-    solver hierarchy (per project requirement to use PySpice):
+    solver hierarchy for final-project runs:
 
-      1. PySpice box-level resistor network (PRIMARY):
-         - Builds a SPICE thermal circuit using PySpice's API
-           (PySpice.Spice.Netlist.Circuit) — one thermal node per physical box.
-         - Exports the SPICE netlist to out_therm/thermal_netlist.sp.
-         - Attempts ngspice operating-point analysis via PySpice.
-         - Falls back to direct matrix solve from the same PySpice circuit
-           topology (scipy sparse CG or numpy) when ngspice is unavailable.
-
-      2. 3D voxel finite-difference (FALLBACK if PySpice import fails):
+      1. Meshed voxel RC netlist (PRIMARY):
          - Builds a non-uniform 3D grid aligned to chiplet boundaries.
          - Assigns per-voxel conductivities from layer stackup definitions.
-         - Solves with scipy sparse CG (or numpy SOR as further fallback).
+         - Deposits GPU/HBM power on each die's center z-plane.
+         - Exports the RC netlist and solves it with local ngspice.
+
+      2. Sparse/numpy fallback:
+         - Uses scipy sparse CG (or numpy SOR) only if ngspice fails.
 
     This function is deliberately NOT the timing-critical path. The caller
     wraps it with simulation_start_time / simulation_end_time and the result
@@ -112,6 +107,9 @@ def simulator_simulate(
     """
     from thermal_solver import solve_thermal
 
+    # Final Project v4 requires GPU/HBM power injection on each die's center
+    # z-plane, so we always use the voxel mesh. That mesh is now solved by
+    # ngspice first, with the internal linear-algebra path only as fallback.
     return solve_thermal(
         boxes,
         bonding_box_list,
@@ -121,6 +119,8 @@ def simulator_simulate(
         tim_cond=tim_cond,
         infill_cond=infill_cond,
         underfill_cond=underfill_cond,
+        force_voxel=True,
+        use_center_plane_power=True,
     )
 
 
@@ -357,18 +357,14 @@ def recursively_lift_box(chiplet, box_list, height):
 
 def create_power_source_backside(boxes, efficiency=0.9):
     """
-    Set power for the backside power delivery source based on total system power.
+    Set backside Power_Source power.
 
-    The power source dissipates (1-efficiency)*total_power/efficiency to model
-    conversion losses. Assumes exactly one Power_Source box exists.
+    Project v4 requires Power_Source consumption to be 0 W.
     """
-    total_power = 0
     for box in boxes:
-        total_power += box.power
-    
-    ps = [box for box in boxes if box.chiplet_parent.get_chiplet_type() == "Power_Source"][0] # Assuming only one power source. For now, it is at bottom. backside power delivery.
-    ps.power = (1 - efficiency) * total_power / efficiency
-    ps.chiplet_parent.set_power(ps.power)
+        if box.chiplet_parent.get_chiplet_type() == "Power_Source":
+            box.power = POWER_SOURCE_POWER_W
+            box.chiplet_parent.set_power(POWER_SOURCE_POWER_W)
 
 
 def calculate_ratio(bonding, box):
@@ -526,12 +522,16 @@ def calculate_GPU_HBM_HTC(box_list, power_dict, hc):
     """
     Compute per-chiplet-type heat transfer coefficients for GPU vs HBM.
 
-    Returns (GPU_HTC, HBM_HTC) in W/(m^2·K). Currently returns fixed values.
+    Returns (GPU_HTC, HBM_HTC) in W/(m^2·K).
+
+    To avoid hidden calibration constants, multi-heatsink mode uses the
+    heatsink definition HTC directly unless a future physics model is added.
     """
-    # Assumption that we already have temperature data with default HTC hc. We use those temperatures to calculate the individual HTC for GPU and HBM.
-    GPU_HTC = 15236.73003 # hc
-    HBM_HTC = 2729.690335 # hc
-    return GPU_HTC, HBM_HTC
+    try:
+        base_hc = float(hc)
+    except (TypeError, ValueError):
+        base_hc = 0.0
+    return base_hc, base_hc
 
 def create_multiple_heat_sinks(
     box_list, heatsink_list, heatsink_name, power_dict, min_TIM_height=0.01
@@ -552,6 +552,8 @@ def create_multiple_heat_sinks(
     material = heatsinks[0].get_material()
     fin_number = heatsinks[0].get_fin_count()
     hc = heatsinks[0].get_hc()
+    fluid_speed = heatsinks[0].get_fluid_speed()
+    cooled_by = heatsinks[0].get_cooled_by()
     fin_offset = heatsinks[0].get_fin_offset()
     dz = heatsinks[0].get_base_thickness()
     bind_to_ambient = heatsinks[0].get_bind_to_ambient()
@@ -577,17 +579,22 @@ def create_multiple_heat_sinks(
     power_dict.update(HTC_dict)
     heatsink_data_list = []
     chiplet_HTC = {
-        "GPU": "GPU_HTC",
-        "HBM": "HBM_HTC"
+        "GPU": GPU_HTC,
+        "HBM": HBM_HTC,
     }
     box_list_top = []
     for box in box_list:
         if(box.chiplet_parent.get_child_chiplets() == []):
             box_list_top.append(box)
     for box in box_list_top:
-        chiplet_type = box.chiplet_parent.get_chiplet_type()[0:3]
-        hc = chiplet_HTC.get(chiplet_type, None)
-        if hc is not None:
+        chiplet_type = box.chiplet_parent.get_chiplet_type()
+        if chiplet_type.startswith("GPU"):
+            local_hc = chiplet_HTC["GPU"]
+        elif chiplet_type.startswith("HBM"):
+            local_hc = chiplet_HTC["HBM"]
+        else:
+            local_hc = None
+        if local_hc is not None:
             x = box.start_x
             y = box.start_y
             dx = box.width
@@ -606,8 +613,10 @@ def create_multiple_heat_sinks(
                 "fin_thickness": str(fin_thickness),
                 "fin_count": str(fin_number),
                 "fin_axis": "Y",
-                "hc": str(hc),
-                "bound": bind_to_ambient
+                "hc": str(local_hc),
+                "bound": bind_to_ambient,
+                "fluid_speed": str(fluid_speed),
+                "cooled_by": str(cooled_by),
             }
             heatsink_data_list.append(heatsink_data)
     
@@ -667,6 +676,8 @@ def create_heat_sink(
     material = heatsinks[0].get_material()
     fin_number = heatsinks[0].get_fin_count()
     hc = heatsinks[0].get_hc()
+    fluid_speed = heatsinks[0].get_fluid_speed()
+    cooled_by = heatsinks[0].get_cooled_by()
     fin_offset = heatsinks[0].get_fin_offset()
     dz = heatsinks[0].get_base_thickness()
     bind_to_ambient = heatsinks[0].get_bind_to_ambient()
@@ -690,7 +701,9 @@ def create_heat_sink(
         "fin_count": str(fin_number),
         "fin_axis": "Y",
         "hc": str(hc),
-        "bound": bind_to_ambient
+        "bound": bind_to_ambient,
+        "fluid_speed": str(fluid_speed),
+        "cooled_by": str(cooled_by),
     }
     return heatsink_data
 
@@ -751,6 +764,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
         for ch in tree:
             if ch.get_chiplet_type() == "GPU":
                 ch.set_power(GPU_DEFAULT_POWER_W)
+            elif ch.get_chiplet_type() == "Power_Source":
+                ch.set_power(POWER_SOURCE_POWER_W)
             _override_gpu_power(ch.get_child_chiplets())
     _override_gpu_power(chiplet_tree)
     (w_top, l_top) = recursive_chiplet_sizing(chiplet_tree[0], None)
@@ -1698,7 +1713,8 @@ def therm(therm_conf, heatsink_conf, bonding_conf, heatsink, out_dir, project_na
     bonding_box_list = create_all_bonding(box_list = boxes, name_type_dict = bonding_name_type_dict, bonding_list = bonding_list) #        
     TIM_boxes = create_TIM_to_heatsink(box_list = boxes, material = "TIM0p5", min_TIM_height = min_TIM_height, system_type = system_type)
     heatsink_obj = create_heat_sink(box_list = boxes, heatsink_list = heatsink_list, heatsink_name = heatsink_name, min_TIM_height = min_TIM_height, scale_factor_x = 0, scale_factor_y = 0, area_scale_factor = 1)
-    create_power_source_backside(boxes) #
+    # Project v4: keep Power_Source at 0 W.
+    create_power_source_backside(boxes)
     power_dict = initialize_power_dict_values(boxes)
 
     # print("After creating bonding, TIM and heatsink:")
@@ -1869,11 +1885,8 @@ def HBM_throttled_power(
     
 def update_power_source_backside(boxes, power_dict, efficiency=0.9):
     """
-    Update power source dissipation based on power_dict and chiplet types.
-
-    Sums power from all non-Power_Source boxes and sets Power_Source loss.
+    Update chiplet powers from power_dict and keep Power_Source at 0 W (v4).
     """
-    total_power = 0
     for box in boxes:
         if(box.chiplet_parent.get_chiplet_type() != "Power_Source"):
             if(box.chiplet_parent.get_chiplet_type()[0:5] == "HBM_l"):
@@ -1884,19 +1897,16 @@ def update_power_source_backside(boxes, power_dict, efficiency=0.9):
                 box.power = power_dict["GPU"]
             elif(box.power > 0.00):
                 print(f"Chiplet type: {box.chiplet_parent.get_chiplet_type()} has power {box.power}W\n")
-
-            total_power += box.power
-    
-    ps = [box for box in boxes if box.chiplet_parent.get_chiplet_type() == "Power_Source"][0] # Assuming only one power source. For now, it is at bottom. backside power delivery.
-    ps.power = (1 - efficiency) * total_power / efficiency
-    ps.chiplet_parent.set_power(ps.power)
-    return ps.power
+        else:
+            box.power = POWER_SOURCE_POWER_W
+            box.chiplet_parent.set_power(POWER_SOURCE_POWER_W)
+    return POWER_SOURCE_POWER_W
 
 def initialize_power_dict_values(boxes):
     """
-    Build power_dict mapping chiplet types (GPU, HBM, HBM_l, Power_Source) to power values.
+    Build power_dict mapping chiplet types (GPU, HBM, HBM_l) to power values.
 
-    Used when power_dict is needed for simulation or calibration.
+    Project v4 sets Power_Source power to 0 W, so it is intentionally omitted.
     """
     power_dict = {}
     for box in boxes: # Assuming all boxes of a particular type have same power.
@@ -1906,8 +1916,6 @@ def initialize_power_dict_values(boxes):
             power_dict["HBM"] = box.power
         elif(box.chiplet_parent.get_chiplet_type()[0:5] == "HBM_l"):
             power_dict["HBM_l"] = box.power
-        elif(box.chiplet_parent.get_chiplet_type() == "Power_Source"):
-            power_dict["Power_Source"] = box.power
     return power_dict
 
 def read_data(filename):

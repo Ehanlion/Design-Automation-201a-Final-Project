@@ -16,6 +16,81 @@ NGSPICE_BIN="$NGSPICE_INSTALL_ROOT/bin/ngspice"
 
 NGSPICE_URL="https://sourceforge.net/projects/ngspice/files/ng-spice-rework/${NGSPICE_VERSION}/ngspice-${NGSPICE_VERSION}.tar.gz/download"
 
+estimate_compile_units() {
+    # Approximate total compilation units for progress estimation.
+    find "$NGSPICE_SRC_DIR" -type f \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \) \
+        | wc -l | tr -d '[:space:]'
+}
+
+run_build_with_progress() {
+    local jobs="$1"
+    local log_file="$2"
+    local build_pid
+    local start_ts now_ts elapsed compiled percent filled empty mins secs
+    local bar_width=34
+    local spinner='|/-\'
+    local spin_idx=0
+    local bar_done bar_todo
+    local total_units
+
+    total_units="$(estimate_compile_units)"
+    if ! [[ "$total_units" =~ ^[0-9]+$ ]]; then
+        total_units=0
+    fi
+
+    : > "$log_file"
+    make -C "$NGSPICE_SRC_DIR" -j"$jobs" >"$log_file" 2>&1 &
+    build_pid=$!
+    start_ts="$(date +%s)"
+
+    mins=0
+    secs=0
+
+    while kill -0 "$build_pid" 2>/dev/null; do
+        now_ts="$(date +%s)"
+        elapsed=$((now_ts - start_ts))
+        mins=$((elapsed / 60))
+        secs=$((elapsed % 60))
+
+        percent=0
+        if [ "$total_units" -gt 0 ]; then
+            compiled="$(grep -Ec -- '(^|[[:space:]])-c([[:space:]]|$)' "$log_file" 2>/dev/null || true)"
+            if ! [[ "$compiled" =~ ^[0-9]+$ ]]; then
+                compiled=0
+            fi
+            percent=$((compiled * 100 / total_units))
+            if [ "$percent" -gt 99 ]; then
+                percent=99
+            fi
+        fi
+
+        filled=$((percent * bar_width / 100))
+        empty=$((bar_width - filled))
+        bar_done="$(printf '%*s' "$filled" '' | tr ' ' '#')"
+        bar_todo="$(printf '%*s' "$empty" '')"
+
+        printf "\rBuilding ngspice [%s%s] %3d%% %s %02d:%02d" \
+            "$bar_done" "$bar_todo" "$percent" "${spinner:spin_idx:1}" "$mins" "$secs"
+        spin_idx=$(((spin_idx + 1) % 4))
+        sleep 1
+    done
+
+    set +e
+    wait "$build_pid"
+    local build_status=$?
+    set -e
+
+    if [ "$build_status" -ne 0 ]; then
+        echo ""
+        echo "ERROR: ngspice build failed. Last 40 lines from $log_file:"
+        tail -n 40 "$log_file" || true
+        exit "$build_status"
+    fi
+
+    printf "\rBuilding ngspice [%s] 100%% done %02d:%02d\n" \
+        "$(printf '%*s' "$bar_width" '' | tr ' ' '#')" "$mins" "$secs"
+}
+
 echo "=== Local ngspice install ==="
 echo "Version:  $NGSPICE_VERSION"
 echo "Prefix:   $NGSPICE_INSTALL_ROOT"
@@ -71,7 +146,8 @@ find "$NGSPICE_SRC_DIR" -name "Makefile.in" -exec touch {} +
 mkdir -p "$NGSPICE_BUILD_DIR"
 
 echo "--- Configuring ---"
-(
+echo "    log: $NGSPICE_BUILD_DIR/configure.log"
+if ! (
     cd "$NGSPICE_SRC_DIR"
     ./configure \
         --prefix="$NGSPICE_INSTALL_ROOT" \
@@ -82,15 +158,20 @@ echo "--- Configuring ---"
         --disable-maintainer-mode \
         --disable-dependency-tracking \
         > "$NGSPICE_BUILD_DIR/configure.log" 2>&1
-)
+); then
+    echo "ERROR: ngspice configure failed. Last 40 lines from $NGSPICE_BUILD_DIR/configure.log:"
+    tail -n 40 "$NGSPICE_BUILD_DIR/configure.log" || true
+    exit 1
+fi
 
-echo "--- Building ---"
-make -C "$NGSPICE_SRC_DIR" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
-    > "$NGSPICE_BUILD_DIR/build.log" 2>&1
+MAKE_JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+echo "--- Building (jobs: $MAKE_JOBS) ---"
+echo "    log: $NGSPICE_BUILD_DIR/build.log"
+run_build_with_progress "$MAKE_JOBS" "$NGSPICE_BUILD_DIR/build.log"
 
 echo "--- Installing ---"
 make -C "$NGSPICE_SRC_DIR" install \
-    > "$NGSPICE_BUILD_DIR/install.log" 2>&1
+    2>&1 | tee "$NGSPICE_BUILD_DIR/install.log"
 
 if [ ! -x "$NGSPICE_BIN" ]; then
     echo "ERROR: install completed but ngspice binary not found at $NGSPICE_BIN"
