@@ -44,3 +44,6 @@ yacctab.py
 
 # Ignore the submission directory
 submission/
+
+# Isolated extracted-tar test sandbox
+_testing/

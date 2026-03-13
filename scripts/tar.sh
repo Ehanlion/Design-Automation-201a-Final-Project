@@ -4,14 +4,15 @@
 # Includes ONLY the files required to run therm.py from scratch:
 #   - therm.py and all its Python dependencies
 #   - configs/ directory (all XML files needed by therm.py and run scripts)
+#   - output/ variable YAML files required by therm_xml_parser.py
 #   - setup/ directory (requirements.txt + setup.sh for environment setup)
-#   - scripts/ — run_all.sh, run_config*.sh, and this script
+#   - scripts/ — run_all.sh and run_config*.sh
 #
-# Report/Slides are optional: place Report.pdf and Slides.pptx in lab_files/
-# or docs/ and they will be included automatically.
+# Slides are optional: place Slides.pptx in lab_files/ or docs/ and it will be
+# included automatically.
 #
 # Usage:
-#   ./scripts/make_submission_tar.sh [GROUP_DIRNAME]
+#   ./scripts/tar.sh [GROUP_DIRNAME]
 #
 # The resulting tarball unpacks to GroupName/ and can be run from inside:
 #   cd GroupName
@@ -49,6 +50,8 @@ PY_FILES=(
   heatsink_xml_parser.py
   rearrange.py
   visualize_results.py
+  convert_golden_output.py
+  compare_to_golden.py
   lextab.py
   yacctab.py
 )
@@ -86,15 +89,18 @@ copy_dir() {
 # ---------------------------------------------------------------------------
 # configs/ — all XML files needed by therm.py (layers, bonding, heatsink,
 #             system configs used by the run scripts)
+# output/  — variable YAML files consumed by therm_xml_parser.py
 # setup/   — requirements.txt + setup.sh for environment reproducibility
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Config and setup directories ---"
 copy_dir "SPICE/therm configs" "configs"
+copy_dir "output variable files" "output"
 copy_dir "environment setup"   "setup"
+copy_dir "golden reference outputs" "solutions"
 
 # ---------------------------------------------------------------------------
-# scripts/ — run scripts and this packaging script itself
+# scripts/ — run scripts included in the submission bundle
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Run scripts ---"
@@ -115,26 +121,26 @@ for f in "${SCRIPT_FILES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Ensure all scripts are executable inside the archive
+# Ensure all packaged shell scripts are executable inside the archive
 # ---------------------------------------------------------------------------
 chmod +x "$SUBMIT_DIR/scripts/"*.sh 2>/dev/null || true
+chmod +x "$SUBMIT_DIR/setup/"*.sh 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Report PDF and Slides PPTX (optional — warning only if missing)
+# Slides PPTX (optional — warning only if missing)
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- Report / Slides (optional) ---"
-for asset in Report.pdf Slides.pptx; do
-  if [[ -f "$ROOT_DIR/lab_files/$asset" ]]; then
-    cp "$ROOT_DIR/lab_files/$asset" "$SUBMIT_DIR/"
-    echo "  $asset (from lab_files/)"
-  elif [[ -f "$ROOT_DIR/docs/$asset" ]]; then
-    cp "$ROOT_DIR/docs/$asset" "$SUBMIT_DIR/"
-    echo "  $asset (from docs/)"
-  else
-    echo "  [WARN] $asset not found — add it before final submission." >&2
-  fi
-done
+echo "--- Slides (optional) ---"
+SLIDES_ASSET="Slides.pptx"
+if [[ -f "$ROOT_DIR/lab_files/$SLIDES_ASSET" ]]; then
+  cp "$ROOT_DIR/lab_files/$SLIDES_ASSET" "$SUBMIT_DIR/"
+  echo "  $SLIDES_ASSET (from lab_files/)"
+elif [[ -f "$ROOT_DIR/docs/$SLIDES_ASSET" ]]; then
+  cp "$ROOT_DIR/docs/$SLIDES_ASSET" "$SUBMIT_DIR/"
+  echo "  $SLIDES_ASSET (from docs/)"
+else
+  echo "  [WARN] $SLIDES_ASSET not found — add it before final submission." >&2
+fi
 
 # ---------------------------------------------------------------------------
 # Create out_therm/ placeholder so the run scripts can find the dir
@@ -142,10 +148,11 @@ done
 mkdir -p "$SUBMIT_DIR/out_therm"
 
 # ---------------------------------------------------------------------------
-# Set read + execute permissions for group and others (grading requirement)
-# Per project spec: "chmod -R go+rx FILE_OR_DIRECTORY"
+# Make the extracted tree editable by anyone, while keeping shell entrypoints
+# directly runnable after untarring.
 # ---------------------------------------------------------------------------
-chmod -R go+rx "$SUBMIT_DIR"
+chmod -R a+rwX "$SUBMIT_DIR"
+find "$SUBMIT_DIR/scripts" "$SUBMIT_DIR/setup" -type f -name '*.sh' -exec chmod a+rwx {} +
 
 # ---------------------------------------------------------------------------
 # Pack tarball — preserves full GroupName/ directory structure on untar
