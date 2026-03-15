@@ -8,8 +8,8 @@
 #   - setup/ directory (requirements.txt + setup.sh for environment setup)
 #   - scripts/ — run_all.sh and run_config*.sh
 #
-# Slides are optional: place Slides.pptx in lab_files/ or docs/ and it will be
-# included automatically.
+# Slides are optional: place slide deck files in the project root (preferred),
+# lab_files/, or docs/ and they will be included automatically.
 #
 # Usage:
 #   ./scripts/tar.sh [GROUP_DIRNAME]
@@ -127,19 +127,43 @@ chmod +x "$SUBMIT_DIR/scripts/"*.sh 2>/dev/null || true
 chmod +x "$SUBMIT_DIR/setup/"*.sh 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Slides PPTX (optional — warning only if missing)
+# Project slides (optional — warning only if missing)
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Slides (optional) ---"
-SLIDES_ASSET="Slides.pptx"
-if [[ -f "$ROOT_DIR/lab_files/$SLIDES_ASSET" ]]; then
-  cp "$ROOT_DIR/lab_files/$SLIDES_ASSET" "$SUBMIT_DIR/"
-  echo "  $SLIDES_ASSET (from lab_files/)"
-elif [[ -f "$ROOT_DIR/docs/$SLIDES_ASSET" ]]; then
-  cp "$ROOT_DIR/docs/$SLIDES_ASSET" "$SUBMIT_DIR/"
-  echo "  $SLIDES_ASSET (from docs/)"
+SLIDES_FOUND=0
+
+for src in \
+  "$ROOT_DIR"/ECE201A_FinalProjectSlides*.pptx \
+  "$ROOT_DIR"/ECE201A_FinalProjectSlides*.pdf \
+  "$ROOT_DIR"/Slides.pptx \
+  "$ROOT_DIR"/Slides.pdf \
+  "$ROOT_DIR/lab_files/Slides.pptx" \
+  "$ROOT_DIR/lab_files/Slides.pdf" \
+  "$ROOT_DIR/docs/Slides.pptx" \
+  "$ROOT_DIR/docs/Slides.pdf"; do
+  if [[ -f "$src" ]]; then
+    cp "$src" "$SUBMIT_DIR/"
+    echo "  $(basename "$src") (from ${src#$ROOT_DIR/})"
+    SLIDES_FOUND=1
+  fi
+done
+
+if [[ "$SLIDES_FOUND" -eq 0 ]]; then
+  echo "  [WARN] Project slide files not found — add both PDF and PPTX before final submission." >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Project instructions (optional)
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Project instructions (optional) ---"
+README_INSTRUCTIONS_FILE="README-Instructions.md"
+if [[ -f "$ROOT_DIR/$README_INSTRUCTIONS_FILE" ]]; then
+  cp "$ROOT_DIR/$README_INSTRUCTIONS_FILE" "$SUBMIT_DIR/"
+  echo "  $README_INSTRUCTIONS_FILE"
 else
-  echo "  [WARN] $SLIDES_ASSET not found — add it before final submission." >&2
+  echo "  [WARN] $README_INSTRUCTIONS_FILE not found in project root." >&2
 fi
 
 # ---------------------------------------------------------------------------
