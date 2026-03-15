@@ -50,7 +50,6 @@ PY_FILES=(
   heatsink_xml_parser.py
   rearrange.py
   visualize_results.py
-  convert_golden_output.py
   compare_to_golden.py
   lextab.py
   yacctab.py

@@ -91,12 +91,15 @@ echo "========================================"
 echo "  Comparing results to golden reference"
 echo "========================================"
 
-python3 "$PROJECT_DIR/convert_golden_output.py" \
-  --input "$PROJECT_DIR/solutions/golden_output.txt" \
-  --output "$PROJECT_DIR/solutions/golden_output_results.txt"
+GOLDEN_RESULTS_PATH="$PROJECT_DIR/solutions/golden_output_results.txt"
+if [[ ! -f "$GOLDEN_RESULTS_PATH" ]]; then
+  echo "ERROR: Missing precomputed golden results file: $GOLDEN_RESULTS_PATH" >&2
+  echo "       Add the precomputed file (and keep it committed) so run_all does not recalculate it." >&2
+  exit 1
+fi
 
 python3 "$PROJECT_DIR/compare_to_golden.py" \
-  --golden "$PROJECT_DIR/solutions/golden_output_results.txt" \
+  --golden "$GOLDEN_RESULTS_PATH" \
   --results_dir "$PROJECT_DIR/out_therm" \
   --summary_txt "$PROJECT_DIR/out_therm/results.txt"
 

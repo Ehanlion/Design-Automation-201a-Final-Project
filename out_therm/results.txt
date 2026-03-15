@@ -18,9 +18,9 @@ avg temp gpu: 99.092325 C
 avg temp hbm: 91.218611 C
 peak variance: 3.654872 C^2
 average variance: 1.732548 C^2
-total time: 95.776 s
-pyspice time: 93.601 s
-placement time: 0.491 s
+total time: 189.205 s
+pyspice time: 184.764 s
+placement time: 1.023 s
 golden comparison: skipped (boxes=57 (expected 61))
 
 case/config: ECTC_3D_1GPU_8high_110325_higherHTC
@@ -30,9 +30,9 @@ avg temp gpu: 124.552848 C
 avg temp hbm: 124.813398 C
 peak variance: 0.683685 C^2
 average variance: 0.652491 C^2
-total time: 29.415 s
-pyspice time: 28.282 s
-placement time: 0.012 s
+total time: 59.591 s
+pyspice time: 57.069 s
+placement time: 0.013 s
 matched boxes: 61/61
 peak mae vs golden: 0.271364 C
 average mae vs golden: 0.250548 C
@@ -46,9 +46,9 @@ avg temp gpu: 121.264252 C
 avg temp hbm: 122.023830 C
 peak variance: 0.066227 C^2
 average variance: 0.084094 C^2
-total time: 29.438 s
-pyspice time: 28.329 s
-placement time: 0.012 s
+total time: 65.438 s
+pyspice time: 63.292 s
+placement time: 0.013 s
 golden comparison: skipped (box names differ after normalization (common=2, expected=61))
 
 # Golden comparison summary
